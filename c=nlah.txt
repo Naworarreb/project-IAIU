@@ -1,0 +1,311 @@
+/* =====================================================================
+   AnderDingus OS - v0.1
+   A toy "mobile-style" operating system shell written in C.
+
+   This is NOT a real bootable operating system - it's a simulated OS
+   environment that runs as a program on top of your real OS (Linux,
+   macOS, Windows, or in a terminal on a phone via Termux/iSH). It
+   demonstrates OS-like concepts:
+     - A boot sequence + home screen UI (text-based)
+     - An in-memory file system (create/read/write/delete/list files)
+     - A simple "browser" that renders local pages and lets you
+       navigate between them via numbered links (like early WAP
+       browsers) - no real internet access, since this isn't a kernel
+       with a network stack.
+
+   Compile:   gcc -o anderdingus anderdingus_os.c
+   Run:       ./anderdingus
+   ===================================================================== */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_FILES 32
+#define MAX_NAME 64
+#define MAX_CONTENT 2048
+#define MAX_PAGES 8
+#define MAX_LINKS 6
+#define MAX_LINE 256
+
+/* ---------------------- File System ---------------------- */
+
+typedef struct {
+    char name[MAX_NAME];
+    char content[MAX_CONTENT];
+    int used;
+} File;
+
+static File filesystem[MAX_FILES];
+
+void fs_init(void) {
+    memset(filesystem, 0, sizeof(filesystem));
+
+    /* A couple of starter files so the device doesn't feel empty */
+    strcpy(filesystem[0].name, "readme.txt");
+    strcpy(filesystem[0].content,
+        "Welcome to AnderDingus OS!\n"
+        "This is your on-device file system.\n"
+        "Try: write, read, list, delete\n");
+    filesystem[0].used = 1;
+
+    strcpy(filesystem[1].name, "notes.txt");
+    strcpy(filesystem[1].content, "(empty notes file - try 'write notes.txt')\n");
+    filesystem[1].used = 1;
+}
+
+int fs_find(const char *name) {
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (filesystem[i].used && strcmp(filesystem[i].name, name) == 0)
+            return i;
+    }
+    return -1;
+}
+
+void fs_list(void) {
+    int count = 0;
+    printf("\n-- Files --\n");
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (filesystem[i].used) {
+            printf("  %-20s (%zu bytes)\n", filesystem[i].name, strlen(filesystem[i].content));
+            count++;
+        }
+    }
+    if (count == 0) printf("  (no files)\n");
+    printf("\n");
+}
+
+void fs_read(const char *name) {
+    int idx = fs_find(name);
+    if (idx == -1) {
+        printf("File not found: %s\n", name);
+        return;
+    }
+    printf("\n----- %s -----\n%s\n----- end -----\n\n", name, filesystem[idx].content);
+}
+
+void fs_write(const char *name) {
+    int idx = fs_find(name);
+    if (idx == -1) {
+        /* find a free slot */
+        for (int i = 0; i < MAX_FILES; i++) {
+            if (!filesystem[i].used) { idx = i; break; }
+        }
+        if (idx == -1) {
+            printf("File system full.\n");
+            return;
+        }
+        strncpy(filesystem[idx].name, name, MAX_NAME - 1);
+        filesystem[idx].used = 1;
+    }
+
+    printf("Enter content (single line, saved to %s):\n> ", name);
+    char buf[MAX_CONTENT];
+    if (fgets(buf, sizeof(buf), stdin) != NULL) {
+        strncpy(filesystem[idx].content, buf, MAX_CONTENT - 1);
+    }
+    printf("Saved.\n\n");
+}
+
+void fs_delete(const char *name) {
+    int idx = fs_find(name);
+    if (idx == -1) {
+        printf("File not found: %s\n", name);
+        return;
+    }
+    filesystem[idx].used = 0;
+    printf("Deleted %s\n\n", name);
+}
+
+/* ---------------------- Browser ---------------------- */
+
+typedef struct {
+    char url[MAX_NAME];
+    char title[MAX_NAME];
+    char body[MAX_CONTENT];
+    char link_labels[MAX_LINKS][MAX_NAME];
+    char link_targets[MAX_LINKS][MAX_NAME];
+    int link_count;
+} Page;
+
+static Page pages[MAX_PAGES];
+static int page_count = 0;
+
+int browser_find(const char *url) {
+    for (int i = 0; i < page_count; i++) {
+        if (strcmp(pages[i].url, url) == 0) return i;
+    }
+    return -1;
+}
+
+void browser_add_page(const char *url, const char *title, const char *body) {
+    Page *p = &pages[page_count];
+    strcpy(p->url, url);
+    strcpy(p->title, title);
+    strcpy(p->body, body);
+    p->link_count = 0;
+    page_count++;
+}
+
+void browser_add_link(const char *from_url, const char *label, const char *target_url) {
+    int idx = browser_find(from_url);
+    if (idx == -1) return;
+    Page *p = &pages[idx];
+    if (p->link_count < MAX_LINKS) {
+        strcpy(p->link_labels[p->link_count], label);
+        strcpy(p->link_targets[p->link_count], target_url);
+        p->link_count++;
+    }
+}
+
+void browser_init(void) {
+    page_count = 0;
+
+    browser_add_page("home://start", "AnderDingus Home",
+        "This is your local start page.\n"
+        "AnderDingus Browser has no real internet access\n"
+        "(this is a simulated OS, not a real network stack),\n"
+        "but you can browse these local demo pages.");
+    browser_add_page("home://about", "About AnderDingus OS",
+        "AnderDingus OS v0.1\n"
+        "Written in C as a demonstration of OS concepts:\n"
+        "boot sequence, file system, and a simple browser.");
+    browser_add_page("home://news", "Local News Demo",
+        "Headline: Toy OS successfully boots in QEMU/terminal.\n"
+        "Headline: In-memory file system holds up to 32 files.\n"
+        "Headline: User discovers browser has no cat videos.");
+    browser_add_page("home://help", "Help",
+        "Browser commands:\n"
+        "  [number]  - follow a link\n"
+        "  back      - go to previous page\n"
+        "  exit      - close the browser");
+
+    browser_add_link("home://start", "About this OS", "home://about");
+    browser_add_link("home://start", "Local news demo", "home://news");
+    browser_add_link("home://start", "Help", "home://help");
+
+    browser_add_link("home://about", "Back to start", "home://start");
+    browser_add_link("home://news", "Back to start", "home://start");
+    browser_add_link("home://help", "Back to start", "home://start");
+}
+
+void browser_render(int idx) {
+    Page *p = &pages[idx];
+    printf("\n=====================================\n");
+    printf(" %s\n", p->title);
+    printf(" (%s)\n", p->url);
+    printf("=====================================\n");
+    printf("%s\n\n", p->body);
+    for (int i = 0; i < p->link_count; i++) {
+        printf("  [%d] %s\n", i + 1, p->link_labels[i]);
+    }
+    printf("\nType a link number, 'back', or 'exit'.\n");
+}
+
+void run_browser(void) {
+    int history[16];
+    int hist_top = 0;
+    int current = browser_find("home://start");
+    history[hist_top++] = current;
+
+    char line[MAX_LINE];
+    while (1) {
+        browser_render(current);
+        printf("browser> ");
+        if (fgets(line, sizeof(line), stdin) == NULL) break;
+        line[strcspn(line, "\n")] = 0;
+
+        if (strcmp(line, "exit") == 0) {
+            break;
+        } else if (strcmp(line, "back") == 0) {
+            if (hist_top > 1) {
+                hist_top--;
+                current = history[hist_top - 1];
+            } else {
+                printf("Already at the start page.\n");
+            }
+        } else {
+            int choice = atoi(line);
+            Page *p = &pages[current];
+            if (choice >= 1 && choice <= p->link_count) {
+                int next = browser_find(p->link_targets[choice - 1]);
+                if (next != -1) {
+                    current = next;
+                    if (hist_top < 16) history[hist_top++] = current;
+                }
+            } else {
+                printf("Not a valid link. Try a number shown above.\n");
+            }
+        }
+    }
+}
+
+/* ---------------------- Shell / Home Screen ---------------------- */
+
+void print_boot_sequence(void) {
+    printf("AnderDingus OS booting...\n");
+    printf("[ OK ] Initializing kernel simulation\n");
+    printf("[ OK ] Mounting in-memory file system\n");
+    printf("[ OK ] Starting browser service\n");
+    printf("[ OK ] Loading home screen\n\n");
+}
+
+void print_help(void) {
+    printf(
+        "\nAnderDingus OS - commands:\n"
+        "  list              - list files\n"
+        "  read <name>       - show file contents\n"
+        "  write <name>      - create/edit a file\n"
+        "  delete <name>     - delete a file\n"
+        "  browser           - open the web browser\n"
+        "  help              - show this menu\n"
+        "  exit              - power off\n\n"
+    );
+}
+
+int main(void) {
+    fs_init();
+    browser_init();
+    print_boot_sequence();
+    printf("=========================================\n");
+    printf("        Welcome to AnderDingus OS\n");
+    printf("=========================================\n");
+    print_help();
+
+    char line[MAX_LINE];
+    while (1) {
+        printf("anderdingus:~$ ");
+        if (fgets(line, sizeof(line), stdin) == NULL) break;
+        line[strcspn(line, "\n")] = 0;
+
+        char cmd[MAX_LINE], arg[MAX_LINE];
+        arg[0] = 0;
+        sscanf(line, "%s %s", cmd, arg);
+
+        if (strlen(cmd) == 0) {
+            continue;
+        } else if (strcmp(cmd, "exit") == 0) {
+            printf("Powering off AnderDingus OS. Goodbye!\n");
+            break;
+        } else if (strcmp(cmd, "help") == 0) {
+            print_help();
+        } else if (strcmp(cmd, "list") == 0) {
+            fs_list();
+        } else if (strcmp(cmd, "read") == 0) {
+            if (strlen(arg) == 0) printf("Usage: read <filename>\n");
+            else fs_read(arg);
+        } else if (strcmp(cmd, "write") == 0) {
+            if (strlen(arg) == 0) printf("Usage: write <filename>\n");
+            else fs_write(arg);
+        } else if (strcmp(cmd, "delete") == 0) {
+            if (strlen(arg) == 0) printf("Usage: delete <filename>\n");
+            else fs_delete(arg);
+        } else if (strcmp(cmd, "browser") == 0) {
+            run_browser();
+        } else {
+            printf("Unknown command: %s (type 'help')\n", cmd);
+        }
+    }
+
+    return 0;
+}
