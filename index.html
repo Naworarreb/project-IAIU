@@ -25,7 +25,6 @@
     font-family:'IBM Plex Mono', monospace;}
   body{padding-bottom:50px;}
 
-  /* ---- fake IDE title bar ---- */
   .titlebar{
     background:var(--panel-2); border-bottom:2px solid var(--cyan);
     padding:9px 14px; display:flex; align-items:center; gap:14px;
@@ -35,6 +34,13 @@
   .titlebar .dot{width:9px; height:9px; border-radius:50%;}
   .dot.r{background:#ff6b6b;} .dot.y{background:var(--yellow);} .dot.g{background:#6fffb0;}
   .titlebar .menu{display:flex; gap:14px; color:var(--muted); font-size:11px;}
+
+  .navbar{display:flex; gap:0; border-bottom:1px solid var(--line); background:var(--panel);}
+  .navtab{
+    flex:1; text-align:center; padding:12px 8px; font-size:12px; letter-spacing:.05em;
+    color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase;
+  }
+  .navtab.active{color:var(--cyan); border-bottom-color:var(--cyan); font-weight:600;}
 
   .hero{padding:20px 16px 6px;}
   .hero .eyebrow{font-size:10.5px; color:var(--yellow); letter-spacing:.16em; text-transform:uppercase; margin-bottom:8px;}
@@ -47,7 +53,6 @@
   .panel-head h3{margin:0; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em;}
   .panel-body{padding:12px;}
 
-  /* ---- REPL-style input ---- */
   .repl{
     display:flex; align-items:center; background:#020616; border:1px solid var(--line);
     border-radius:5px; padding:10px 10px; gap:8px;
@@ -88,7 +93,11 @@
   .matched b{color:var(--cyan);}
   .matched .mod-tag{color:var(--yellow);}
 
-  /* ---- code output, editor look ---- */
+  .explainBox{margin-top:12px; padding:10px 12px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; font-size:11.5px; line-height:1.7;}
+  .explainBox b{color:var(--cyan);}
+  .explainBox ul{margin:6px 0 10px; padding-left:18px;}
+  .explainBox li{margin-bottom:4px;}
+
   .editor{display:flex; background:#020616; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .gutter{
     background:#01040f; color:#3d4a8f; font-size:11px; text-align:right;
@@ -101,9 +110,19 @@
   }
   .empty-msg{font-size:12px; color:var(--muted); padding:8px 2px;}
 
-  .legend{font-size:11px; color:var(--muted); line-height:1.9;}
-  .legend .cat{color:var(--cyan); font-weight:600; margin-top:8px; display:block;}
-  .legend code{color:var(--yellow);}
+  .dictSearch{width:100%; background:#020616; border:1px solid var(--line); border-radius:5px;
+    padding:9px 10px; color:var(--text); font-family:'IBM Plex Mono', monospace; font-size:12.5px; margin-bottom:10px;}
+  .dictEntry{padding:8px 0; border-bottom:1px solid var(--line); font-size:11.5px; line-height:1.6;}
+  .dictEntry:last-child{border-bottom:none;}
+  .dictEntry b{color:var(--yellow); display:block; margin-bottom:2px;}
+
+  .libRef .cat{color:var(--cyan); font-weight:600; font-size:12px; margin-top:14px; display:block;}
+  .libRef .cat:first-child{margin-top:0;}
+  .libItem{font-size:11.5px; padding:7px 0; border-bottom:1px solid var(--line); line-height:1.6;}
+  .libItem:last-child{border-bottom:none;}
+  .libItem b{color:var(--text);}
+  .libItem .kw{color:var(--yellow);}
+  .libItem .desc{color:var(--muted); display:block; margin-top:2px;}
 
   footer{margin:22px 16px 4px; font-size:10px; color:var(--muted); text-align:center; line-height:1.6;}
 </style>
@@ -115,47 +134,88 @@
   <div class="menu"><span>File</span><span>Edit</span><span>Run</span><span>Help</span></div>
 </div>
 
-<div class="hero">
-  <div class="eyebrow">Rule-based · zero ML · deterministic</div>
-  <h1>QGEN::COMPOSER — <span>Keyword</span> Python Generator</h1>
-  <p>Type keywords, tap a suggestion, or mix several. A fixed template library is matched against your words with plain string logic — no language model involved — and assembled into runnable Python.</p>
+<div class="navbar">
+  <div class="navtab active" data-page="compose">Compose</div>
+  <div class="navtab" data-page="explain">Explain</div>
 </div>
 
-<div class="panel">
-  <div class="panel-head"><h3>Keyword input</h3></div>
-  <div class="panel-body">
-    <div class="repl">
-      <span class="prompt">&gt;&gt;&gt;</span>
-      <input id="kwInput" type="text" placeholder="e.g. quicksort tests cli" autocomplete="off" />
-      <span class="cursor"></span>
-    </div>
+<!-- ============================================================ COMPOSE PAGE ============================================================ -->
+<div id="page-compose">
 
-    <div class="tabs" id="catTabs"></div>
-    <div class="chips" id="chipArea"></div>
-
-    <div class="btn-row">
-      <button class="btn btn-run" onclick="generate()">▶ Compose code</button>
-      <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
-    </div>
-    <div class="matched" id="matchedInfo"></div>
+  <div class="hero">
+    <div class="eyebrow">Rule-based · zero ML · deterministic</div>
+    <h1>QGEN::COMPOSER — <span>Keyword</span> Python Generator</h1>
+    <p>Type keywords, tap a suggestion, or mix several. A fixed template library is matched against your words with plain string logic — no language model involved — and assembled into runnable Python. New to code? Check the <b style="color:var(--cyan)">Explain</b> tab above.</p>
   </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Keyword input</h3></div>
+    <div class="panel-body">
+      <div class="repl">
+        <span class="prompt">&gt;&gt;&gt;</span>
+        <input id="kwInput" type="text" placeholder="e.g. quicksort tests cli" autocomplete="off" />
+        <span class="cursor"></span>
+      </div>
+
+      <div class="tabs" id="catTabs"></div>
+      <div class="chips" id="chipArea"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-run" onclick="generate()">▶ Compose code</button>
+        <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+      </div>
+      <div class="matched" id="matchedInfo"></div>
+      <div id="explainBox"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Generated Python</h3><span style="font-size:10px; color:var(--muted);" id="copyMsg"></span></div>
+    <div class="panel-body">
+      <div id="outputWrap"><div class="empty-msg">No code yet — enter keywords above and tap Compose code.</div></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="copyCode()">📋 Copy code</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<div class="panel">
-  <div class="panel-head"><h3>Generated Python</h3><span style="font-size:10px; color:var(--muted);" id="copyMsg"></span></div>
-  <div class="panel-body">
-    <div id="outputWrap"><div class="empty-msg">No code yet — enter keywords above and tap Compose code.</div></div>
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="copyCode()">📋 Copy code</button>
+<!-- ============================================================ EXPLAIN PAGE ============================================================ -->
+<div id="page-explain" style="display:none;">
+
+  <div class="hero">
+    <div class="eyebrow">No jargon left unexplained</div>
+    <h1>What does <span>any of this</span> mean?</h1>
+    <p>This page has three parts: a plain-English dictionary of programming words, a note on how the keyword matching actually works, and a full reference of every template and modifier in the library — including what each one does and when you'd use it.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>How matching works</h3></div>
+    <div class="panel-body" style="font-size:11.5px; color:var(--muted); line-height:1.7;">
+      <p style="margin:0 0 8px;">There's no AI here — it's closer to a dictionary lookup. When you type something, the tool:</p>
+      <p style="margin:0 0 6px;">1. Splits your text into individual words.</p>
+      <p style="margin:0 0 6px;">2. Trims common endings (so "sorting", "sorted", and "sorts" all match "sort").</p>
+      <p style="margin:0 0 6px;">3. Checks each word against a fixed list of trigger words attached to each code template below.</p>
+      <p style="margin:0;">4. Assembles the matching templates — plus any modifiers you typed, like "tests" or "cli" — into one Python file.</p>
     </div>
   </div>
-</div>
 
-<div class="panel">
-  <div class="panel-head"><h3>Keyword library</h3></div>
-  <div class="panel-body">
-    <div class="legend" id="legendArea"></div>
+  <div class="panel">
+    <div class="panel-head"><h3>Programming dictionary</h3></div>
+    <div class="panel-body">
+      <input class="dictSearch" id="dictSearch" type="text" placeholder="Search terms, e.g. 'loop' or 'API'" oninput="renderDictionary(this.value)">
+      <div id="dictList"></div>
+    </div>
   </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Full library reference</h3></div>
+    <div class="panel-body">
+      <div class="libRef" id="libraryReference"></div>
+    </div>
+  </div>
+
 </div>
 
 <footer>
@@ -170,7 +230,9 @@
    ============================================================ */
 const LIB = [
 // ---------------- ALGORITHMS / DATA STRUCTURES ----------------
-{ id:'bubble_sort', title:'Bubble Sort', category:'algo', keywords:['bubble','bubblesort'],
+{ id:'bubble_sort', title:'Bubble Sort', category:'algo',
+  keywords:['bubble','bubblesort'],
+  explain:"Repeatedly compares neighboring items and swaps them until the whole list is in order — simple to understand, but slow on large lists.",
   imports:[], code:
 `def bubble_sort(items: list) -> list:
     """Sort a list in ascending order using the bubble sort algorithm."""
@@ -185,14 +247,16 @@ const LIB = [
         if not swapped:
             break
     return arr`,
-  demo:(N)=>`sample = [8, 3, 5, 1, 9, 2]${N?`[:${Math.max(2,N)}] if len([8,3,5,1,9,2]) > ${N} else [8,3,5,1,9,2]`:''}
+  demo:()=>`sample = [8, 3, 5, 1, 9, 2]
 print("bubble_sort:", bubble_sort(sample))`,
   test:`def test_bubble_sort():
     assert bubble_sort([3, 1, 2]) == [1, 2, 3]
     assert bubble_sort([]) == []`,
   plot:null },
 
-{ id:'quicksort', title:'Quicksort', category:'algo', keywords:['quick','quicksort'],
+{ id:'quicksort', title:'Quicksort', category:'algo',
+  keywords:['quick','quicksort','qsort'],
+  explain:"Picks a 'pivot' value, splits the list into smaller/equal/larger groups around it, then sorts each group the same way — fast on average.",
   imports:[], code:
 `def quicksort(items: list) -> list:
     """Sort a list using the quicksort algorithm (recursive, list comprehensions)."""
@@ -203,13 +267,15 @@ print("bubble_sort:", bubble_sort(sample))`,
     middle = [x for x in items if x == pivot]
     right = [x for x in items if x > pivot]
     return quicksort(left) + middle + quicksort(right)`,
-  demo:(N)=>`sample = [8, 3, 5, 1, 9, 2, 7]
+  demo:()=>`sample = [8, 3, 5, 1, 9, 2, 7]
 print("quicksort:", quicksort(sample))`,
   test:`def test_quicksort():
     assert quicksort([5, 4, 3, 2, 1]) == [1, 2, 3, 4, 5]`,
   plot:null },
 
-{ id:'merge_sort', title:'Merge Sort', category:'algo', keywords:['merge','mergesort'],
+{ id:'merge_sort', title:'Merge Sort', category:'algo',
+  keywords:['merge','mergesort'],
+  explain:"Splits the list in half over and over until pieces are single items, then merges those pieces back together in order.",
   imports:[], code:
 `def merge_sort(items: list) -> list:
     """Sort a list using the merge sort algorithm."""
@@ -238,7 +304,51 @@ print("merge_sort:", merge_sort(sample))`,
     assert merge_sort([3, 1, 2]) == [1, 2, 3]`,
   plot:null },
 
-{ id:'binary_search', title:'Binary Search', category:'algo', keywords:['binary','search'],
+{ id:'insertion_sort', title:'Insertion Sort', category:'algo',
+  keywords:['insertion','insertionsort'],
+  explain:"Builds the sorted list one item at a time, sliding each new item into its correct position among the ones already placed.",
+  imports:[], code:
+`def insertion_sort(items: list) -> list:
+    """Sort a list in ascending order using insertion sort."""
+    arr = items.copy()
+    for i in range(1, len(arr)):
+        key = arr[i]
+        j = i - 1
+        while j >= 0 and arr[j] > key:
+            arr[j + 1] = arr[j]
+            j -= 1
+        arr[j + 1] = key
+    return arr`,
+  demo:()=>`sample = [5, 2, 4, 6, 1, 3]
+print("insertion_sort:", insertion_sort(sample))`,
+  test:`def test_insertion_sort():
+    assert insertion_sort([3, 1, 2]) == [1, 2, 3]`,
+  plot:null },
+
+{ id:'selection_sort', title:'Selection Sort', category:'algo',
+  keywords:['selection','selectionsort'],
+  explain:"Repeatedly scans for the smallest remaining item and moves it into place — easy to follow, not the fastest for big lists.",
+  imports:[], code:
+`def selection_sort(items: list) -> list:
+    """Sort a list in ascending order using selection sort."""
+    arr = items.copy()
+    n = len(arr)
+    for i in range(n):
+        min_idx = i
+        for j in range(i + 1, n):
+            if arr[j] < arr[min_idx]:
+                min_idx = j
+        arr[i], arr[min_idx] = arr[min_idx], arr[i]
+    return arr`,
+  demo:()=>`sample = [64, 25, 12, 22, 11]
+print("selection_sort:", selection_sort(sample))`,
+  test:`def test_selection_sort():
+    assert selection_sort([3, 1, 2]) == [1, 2, 3]`,
+  plot:null },
+
+{ id:'binary_search', title:'Binary Search', category:'algo',
+  keywords:['binary','search','bsearch'],
+  explain:"Finds a value in a sorted list quickly by repeatedly checking the middle item and discarding half the list each time.",
   imports:[], code:
 `def binary_search(sorted_items: list, target) -> int:
     """Return the index of target in a sorted list, or -1 if not found."""
@@ -259,7 +369,9 @@ print("binary_search index:", binary_search(sorted_sample, ${N || 8}))`,
     assert binary_search([1, 2, 3], 9) == -1`,
   plot:null },
 
-{ id:'stack', title:'Stack (LIFO)', category:'algo', keywords:['stack'],
+{ id:'stack', title:'Stack (LIFO)', category:'algo',
+  keywords:['stack'],
+  explain:"A container where the last item you added is the first one you take out — like a stack of plates.",
   imports:[], code:
 `class Stack:
     """A simple LIFO stack backed by a Python list."""
@@ -288,7 +400,9 @@ print("stack pop:", s.pop(), "remaining:", len(s))`,
     assert len(s) == 1`,
   plot:null },
 
-{ id:'queue', title:'Queue (FIFO)', category:'algo', keywords:['queue'],
+{ id:'queue', title:'Queue (FIFO)', category:'algo',
+  keywords:['queue','fifo'],
+  explain:"A container where the first item you added is the first one you take out — like people waiting in line.",
   imports:['from collections import deque'], code:
 `class Queue:
     """A simple FIFO queue backed by collections.deque."""
@@ -314,7 +428,67 @@ print("queue dequeue:", q.dequeue(), "remaining:", len(q))`,
     assert q.dequeue() == 1`,
   plot:null },
 
-{ id:'linked_list', title:'Linked List', category:'algo', keywords:['linkedlist','linked'],
+{ id:'priority_queue', title:'Priority Queue', category:'algo',
+  keywords:['priority','priorityqueue','heap'],
+  explain:"Keeps items sorted by priority so the most urgent one always comes out first, using Python's built-in heapq module.",
+  imports:['import heapq'], code:
+`class PriorityQueue:
+    """A min-priority queue: the lowest-priority item always comes out first."""
+    def __init__(self):
+        self._heap = []
+    def push(self, priority: float, item) -> None:
+        heapq.heappush(self._heap, (priority, item))
+    def pop(self):
+        if not self._heap:
+            raise IndexError("pop from empty priority queue")
+        return heapq.heappop(self._heap)[1]
+    def is_empty(self) -> bool:
+        return len(self._heap) == 0`,
+  demo:()=>`pq = PriorityQueue()
+pq.push(2, "medium"); pq.push(1, "urgent"); pq.push(3, "low")
+print("next up:", pq.pop())`,
+  test:`def test_priority_queue():
+    pq = PriorityQueue()
+    pq.push(5, "a")
+    pq.push(1, "b")
+    assert pq.pop() == "b"`,
+  plot:null },
+
+{ id:'hash_table', title:'Hash Table', category:'algo',
+  keywords:['hashtable','hashmap'],
+  explain:"Stores key-value pairs so you can look values up almost instantly by key — the same idea behind Python's built-in dict.",
+  imports:[], code:
+`class HashTable:
+    """A basic hash table with separate chaining for collisions."""
+    def __init__(self, buckets: int = 16):
+        self._buckets = [[] for _ in range(buckets)]
+    def _index(self, key) -> int:
+        return hash(key) % len(self._buckets)
+    def set(self, key, value) -> None:
+        bucket = self._buckets[self._index(key)]
+        for i, (k, _) in enumerate(bucket):
+            if k == key:
+                bucket[i] = (key, value)
+                return
+        bucket.append((key, value))
+    def get(self, key):
+        bucket = self._buckets[self._index(key)]
+        for k, v in bucket:
+            if k == key:
+                return v
+        raise KeyError(key)`,
+  demo:()=>`ht = HashTable()
+ht.set("name", "Ada")
+print("lookup:", ht.get("name"))`,
+  test:`def test_hash_table():
+    ht = HashTable()
+    ht.set("x", 1)
+    assert ht.get("x") == 1`,
+  plot:null },
+
+{ id:'linked_list', title:'Linked List', category:'algo',
+  keywords:['linkedlist','linked'],
+  explain:"A chain of nodes where each one points to the next — adding and removing items doesn't require shifting the whole list.",
   imports:[], code:
 `class Node:
     def __init__(self, value):
@@ -347,7 +521,9 @@ for v in [1, 2, 3]:
 print("linked list:", ll.to_list())`,
   test:null, plot:null },
 
-{ id:'bst', title:'Binary Search Tree', category:'algo', keywords:['tree','bst'],
+{ id:'bst', title:'Binary Search Tree', category:'algo',
+  keywords:['tree','bst'],
+  explain:"Stores values so that everything smaller than a node lives to its left, everything larger to its right — making search fast.",
   imports:[], code:
 `class TreeNode:
     def __init__(self, value):
@@ -387,7 +563,9 @@ for v in [5, 2, 8, 1, 9]:
 print("in-order:", bst.in_order())`,
   test:null, plot:null },
 
-{ id:'graph', title:'Graph BFS/DFS', category:'algo', keywords:['graph','bfs','dfs'],
+{ id:'graph', title:'Graph BFS/DFS', category:'algo',
+  keywords:['graph','bfs','dfs','traversal'],
+  explain:"Explores a network of connected nodes — breadth-first spreads out layer by layer, depth-first dives down one path at a time.",
   imports:['from collections import deque'], code:
 `def bfs(graph: dict, start):
     """Breadth-first traversal of a graph given as an adjacency dict."""
@@ -419,7 +597,9 @@ print("bfs:", bfs(sample_graph, "A"))
 print("dfs:", dfs(sample_graph, "A"))`,
   test:null, plot:null },
 
-{ id:'fibonacci', title:'Fibonacci (memoized)', category:'algo', keywords:['fibonacci','fib'],
+{ id:'fibonacci', title:'Fibonacci (memoized)', category:'algo',
+  keywords:['fibonacci','fib'],
+  explain:"Computes the Fibonacci sequence (each number is the sum of the two before it), remembering past results so it stays fast.",
   imports:['from functools import lru_cache'], code:
 `@lru_cache(maxsize=None)
 def fibonacci(n: int) -> int:
@@ -434,7 +614,9 @@ def fibonacci(n: int) -> int:
     assert fibonacci(10) == 55`,
   plot:null },
 
-{ id:'factorial', title:'Factorial', category:'algo', keywords:['factorial'],
+{ id:'factorial', title:'Factorial', category:'algo',
+  keywords:['factorial'],
+  explain:"Multiplies a number by every whole number below it down to 1 — used throughout combinatorics and probability.",
   imports:[], code:
 `def factorial(n: int) -> int:
     """Return n! computed iteratively."""
@@ -450,8 +632,64 @@ def fibonacci(n: int) -> int:
     assert factorial(5) == 120`,
   plot:null },
 
+{ id:'prime_sieve', title:'Prime Sieve', category:'algo',
+  keywords:['prime','primes','sieve'],
+  explain:"Finds every prime number up to a limit by crossing out multiples of each prime it finds, starting from 2.",
+  imports:[], code:
+`def sieve_of_eratosthenes(limit: int) -> list:
+    """Return all prime numbers up to limit using the Sieve of Eratosthenes."""
+    is_prime = [True] * (limit + 1)
+    is_prime[0:2] = [False, False]
+    for n in range(2, int(limit ** 0.5) + 1):
+        if is_prime[n]:
+            for multiple in range(n * n, limit + 1, n):
+                is_prime[multiple] = False
+    return [n for n, prime in enumerate(is_prime) if prime]`,
+  demo:(N)=>`limit = ${N || 50}
+print("primes up to", limit, ":", sieve_of_eratosthenes(limit))`,
+  test:`def test_sieve():
+    assert sieve_of_eratosthenes(10) == [2, 3, 5, 7]`,
+  plot:null },
+
+{ id:'palindrome', title:'Palindrome Checker', category:'algo',
+  keywords:['palindrome'],
+  explain:"Checks whether text reads identically forwards and backwards, ignoring spaces, punctuation, and capitalization.",
+  imports:[], code:
+`def is_palindrome(text: str) -> bool:
+    """Return True if text reads the same forwards and backwards (ignoring case/spaces)."""
+    cleaned = ''.join(ch.lower() for ch in text if ch.isalnum())
+    return cleaned == cleaned[::-1]`,
+  demo:()=>`print("is_palindrome:", is_palindrome("Was it a car or a cat I saw"))`,
+  test:`def test_palindrome():
+    assert is_palindrome("racecar") is True
+    assert is_palindrome("hello") is False`,
+  plot:null },
+
+{ id:'gcd_lcm', title:'GCD / LCM', category:'algo',
+  keywords:['gcd','lcm'],
+  explain:"Finds the greatest common divisor and least common multiple of two numbers using the classic Euclidean algorithm.",
+  imports:[], code:
+`def gcd(a: int, b: int) -> int:
+    """Return the greatest common divisor of a and b (Euclidean algorithm)."""
+    while b:
+        a, b = b, a % b
+    return a
+
+
+def lcm(a: int, b: int) -> int:
+    """Return the least common multiple of a and b."""
+    return abs(a * b) // gcd(a, b)`,
+  demo:()=>`print("gcd(48, 18):", gcd(48, 18))
+print("lcm(4, 6):", lcm(4, 6))`,
+  test:`def test_gcd_lcm():
+    assert gcd(48, 18) == 6
+    assert lcm(4, 6) == 12`,
+  plot:null },
+
 // ---------------- WEB APP BOILERPLATE ----------------
-{ id:'flask_api', title:'Flask REST API', category:'web', keywords:['flask','api','rest','server','web'],
+{ id:'flask_api', title:'Flask REST API', category:'web',
+  keywords:['flask','api','rest','server','web','endpoint','webapp'],
+  explain:"Sets up a small web server with two routes for listing and creating items — the classic starting point for a REST API.",
   imports:['from flask import Flask, jsonify, request'], code:
 `app = Flask(__name__)
 items = []
@@ -474,7 +712,9 @@ def create_item():
 print("Flask app ready. Run with: app.run(debug=True)")`,
   test:null, plot:null },
 
-{ id:'sqlite_db', title:'SQLite persistence', category:'web', keywords:['database','sqlite','db'],
+{ id:'sqlite_db', title:'SQLite persistence', category:'web',
+  keywords:['database','sqlite','db','persist','storage'],
+  explain:"Saves data to a small file-based database so it's still there the next time your program runs.",
   imports:['import sqlite3','from contextlib import closing'], code:
 `DB_PATH = "app.db"
 
@@ -502,7 +742,9 @@ new_id = add_item("example")
 print("inserted row id:", new_id)`,
   test:null, plot:null },
 
-{ id:'auth', title:'Token auth', category:'web', keywords:['auth','login','jwt'],
+{ id:'auth', title:'Token auth', category:'web',
+  keywords:['auth','login','jwt','token','password'],
+  explain:"Hashes passwords and issues signed tokens so a server can recognize a logged-in user on later requests.",
   imports:['import hashlib','import hmac','import time'], code:
 `SECRET = "change-me"
 
@@ -537,7 +779,9 @@ print("token valid:", verify_token(token))`,
     assert verify_token("garbage") is False`,
   plot:null },
 
-{ id:'http_server', title:'Plain HTTP server', category:'web', keywords:['http','httpserver'],
+{ id:'http_server', title:'Plain HTTP server', category:'web',
+  keywords:['http','httpserver','webserver'],
+  explain:"Runs a minimal web server using only Python's standard library — no framework needed for something this simple.",
   imports:['from http.server import BaseHTTPRequestHandler, HTTPServer'], code:
 `class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -555,8 +799,61 @@ def run_server(port: int = 8000) -> None:
   demo:()=>`print("HTTP server ready. Run with: run_server(8000)")`,
   test:null, plot:null },
 
+{ id:'json_client', title:'JSON API client', category:'web',
+  keywords:['jsonclient','httpclient','fetch','json'],
+  explain:"Downloads data from a web address and parses it as JSON — useful for talking to a REST API without extra libraries.",
+  imports:['import json','import urllib.request'], code:
+`def fetch_json(url: str) -> dict:
+    """Fetch a URL and parse its response body as JSON (standard library only)."""
+    with urllib.request.urlopen(url) as response:
+        return json.loads(response.read().decode())`,
+  demo:()=>`print("fetch_json(url) is ready — call it with a real endpoint, e.g. fetch_json('https://api.example.com/data')")`,
+  test:null, plot:null },
+
+{ id:'form_validation', title:'Form validation', category:'web',
+  keywords:['formvalidation','validate','validation'],
+  explain:"Checks user-submitted data — like confirming an email address looks valid or that required fields aren't left empty.",
+  imports:['import re'], code:
+`def validate_email(email: str) -> bool:
+    """Return True if email looks like a syntactically valid address."""
+    pattern = r"^[\\w.+-]+@[\\w-]+\\.[\\w.-]+$"
+    return re.match(pattern, email) is not None
+
+
+def validate_required(fields: dict) -> list:
+    """Return a list of field names that are missing or empty."""
+    return [name for name, value in fields.items() if not value]`,
+  demo:()=>`print("valid email:", validate_email("[email protected]"))
+print("missing fields:", validate_required({"name": "", "age": 30}))`,
+  test:`def test_validate_email():
+    assert validate_email("[email protected]") is True
+    assert validate_email("nope") is False`,
+  plot:null },
+
+{ id:'memoize_cache', title:'Memoization cache', category:'web',
+  keywords:['memoize','cache','caching'],
+  explain:"Wraps a function so repeated calls with the same input reuse a cached answer instead of recomputing it from scratch.",
+  imports:['import functools'], code:
+`def memoize(func):
+    """Decorator that caches a function's return values by its arguments."""
+    cache = {}
+    @functools.wraps(func)
+    def wrapper(*args):
+        if args not in cache:
+            cache[args] = func(*args)
+        return cache[args]
+    return wrapper`,
+  demo:()=>`@memoize
+def slow_square(n):
+    return n * n
+
+print("cached result:", slow_square(9))`,
+  test:null, plot:null },
+
 // ---------------- GAME LOGIC ----------------
-{ id:'tictactoe', title:'Tic-Tac-Toe', category:'game', keywords:['tictactoe'],
+{ id:'tictactoe', title:'Tic-Tac-Toe', category:'game',
+  keywords:['tictactoe','tic'],
+  explain:"Tracks a 3x3 board and checks all the winning lines (rows, columns, diagonals) after each move.",
   imports:[], code:
 `def print_board(board: list) -> None:
     for row in range(0, 9, 3):
@@ -578,7 +875,9 @@ print("winner:", check_winner(board) or "none yet")`,
     assert check_winner(board) == "X"`,
   plot:null },
 
-{ id:'snake', title:'Snake mechanics', category:'game', keywords:['snake'],
+{ id:'snake', title:'Snake mechanics', category:'game',
+  keywords:['snake'],
+  explain:"Moves a snake's body one step at a time, spawns food in an empty cell, and detects wall or self collisions.",
   imports:['import random'], code:
 `def move_snake(snake: list, direction: tuple, grow: bool = False) -> list:
     """Move a snake (list of (x, y) tuples, head last) one step in direction."""
@@ -611,7 +910,9 @@ snake = move_snake(snake, (1,0), grow=True)
 print("snake body:", snake, "collision:", is_collision(snake, 10, 10))`,
   test:null, plot:null },
 
-{ id:'dice', title:'Dice roller', category:'game', keywords:['dice'],
+{ id:'dice', title:'Dice roller', category:'game',
+  keywords:['dice'],
+  explain:"Rolls one or more dice and returns the results — the building block behind board games and tabletop RPGs.",
   imports:['import random'], code:
 `def roll_dice(num_dice: int = 2, sides: int = 6) -> list:
     """Roll num_dice dice with 'sides' sides each and return the results."""
@@ -623,7 +924,9 @@ print("snake body:", snake, "collision:", is_collision(snake, 10, 10))`,
     assert all(1 <= r <= 6 for r in rolls)`,
   plot:null },
 
-{ id:'rpg_battle', title:'RPG battle sim', category:'game', keywords:['rpg','battle'],
+{ id:'rpg_battle', title:'RPG battle sim', category:'game',
+  keywords:['rpg','battle','combat'],
+  explain:"Simulates two characters trading turn-based attacks with some randomness, until one runs out of HP.",
   imports:['import random'], code:
 `class Character:
     """A simple RPG character with HP and attack power."""
@@ -656,7 +959,9 @@ enemy = Character("Goblin", 25, 6)
 print("winner:", simulate_battle(hero, enemy))`,
   test:null, plot:null },
 
-{ id:'minimax', title:'Minimax AI', category:'game', keywords:['minimax'],
+{ id:'minimax', title:'Minimax AI', category:'game',
+  keywords:['minimax','gameai'],
+  explain:"A generic decision-making algorithm for two-player games: it looks ahead and assumes the opponent always plays their best move too.",
   imports:[], code:
 `def minimax(board: list, depth: int, is_maximizing: bool, check_winner, available_moves) -> int:
     """Generic minimax scorer for a two-player zero-sum board game."""
@@ -684,8 +989,73 @@ print("winner:", simulate_battle(hero, enemy))`,
   demo:()=>`print("minimax() is generic — plug in your own check_winner/available_moves for a specific game.")`,
   test:null, plot:null },
 
+{ id:'hangman', title:'Hangman logic', category:'game',
+  keywords:['hangman'],
+  explain:"Tracks which letters of a secret word have been guessed and shows blanks for the rest — the core mechanic of Hangman.",
+  imports:[], code:
+`def hangman_progress(secret: str, guessed: set) -> str:
+    """Return the secret word with unguessed letters shown as underscores."""
+    return ' '.join(ch if ch in guessed else '_' for ch in secret)
+
+
+def is_hangman_won(secret: str, guessed: set) -> bool:
+    """Return True if every letter in secret has been guessed."""
+    return all(ch in guessed for ch in secret)`,
+  demo:()=>`secret = "python"
+guessed = {"p", "y", "o"}
+print("progress:", hangman_progress(secret, guessed))
+print("won:", is_hangman_won(secret, guessed))`,
+  test:`def test_hangman_progress():
+    assert hangman_progress("cat", {"c", "a", "t"}) == "c a t"`,
+  plot:null },
+
+{ id:'rps', title:'Rock-Paper-Scissors', category:'game',
+  keywords:['rockpaperscissors','rps'],
+  explain:"Plays one round of rock-paper-scissors against a random computer choice and reports who won.",
+  imports:['import random'], code:
+`def play_rps(player_move: str) -> str:
+    """Play one round of rock-paper-scissors against a random computer move."""
+    options = ["rock", "paper", "scissors"]
+    computer_move = random.choice(options)
+    beats = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
+    if player_move == computer_move:
+        result = "tie"
+    elif beats[player_move] == computer_move:
+        result = "win"
+    else:
+        result = "lose"
+    return f"You: {player_move}, Computer: {computer_move} -> {result}"`,
+  demo:()=>`print(play_rps("rock"))`,
+  test:null, plot:null },
+
+{ id:'guess_number', title:'Number guessing game', category:'game',
+  keywords:['guessnumber','guessinggame'],
+  explain:"Picks a secret number and tells the player whether to guess higher or lower — the logic behind a classic guessing game.",
+  imports:['import random'], code:
+`def new_secret_number(low: int = 1, high: int = 100) -> int:
+    """Pick a random secret number between low and high (inclusive)."""
+    return random.randint(low, high)
+
+
+def check_guess(secret: int, guess: int) -> str:
+    """Return 'higher', 'lower', or 'correct' for a guess against the secret number."""
+    if guess < secret:
+        return "higher"
+    if guess > secret:
+        return "lower"
+    return "correct"`,
+  demo:()=>`secret = 50
+print("guess 30:", check_guess(secret, 30))
+print("guess 50:", check_guess(secret, 50))`,
+  test:`def test_check_guess():
+    assert check_guess(50, 50) == "correct"
+    assert check_guess(50, 10) == "higher"`,
+  plot:null },
+
 // ---------------- MATH / SCIENCE SIMULATIONS ----------------
-{ id:'projectile', title:'Projectile motion', category:'math', keywords:['projectile'],
+{ id:'projectile', title:'Projectile motion', category:'math',
+  keywords:['projectile','trajectory','ballistic'],
+  explain:"Calculates how far and how high a launched object travels under gravity, based on its speed and launch angle.",
   imports:['import math'], code:
 `def projectile_range(velocity: float, angle_deg: float, gravity: float = 9.81) -> float:
     """Return the horizontal range of a projectile launched at angle_deg."""
@@ -714,7 +1084,9 @@ plt.xlabel("x (m)"); plt.ylabel("y (m)")
 plt.savefig("projectile_trajectory.png")
 print("Saved plot to projectile_trajectory.png")` },
 
-{ id:'orbital', title:'Orbital mechanics', category:'math', keywords:['orbital','orbit'],
+{ id:'orbital', title:'Orbital mechanics', category:'math',
+  keywords:['orbital','orbit','kepler'],
+  explain:"Computes gravitational force and orbital period between two bodies, using the same physics that governs planets and satellites.",
   imports:['import math'], code:
 `G = 6.674e-11  # gravitational constant (SI units)
 
@@ -731,7 +1103,9 @@ def orbital_period(semi_major_axis: float, total_mass: float) -> float:
 print("Earth orbital period (days):", round(earth_sun_period / 86400, 1))`,
   test:null, plot:null },
 
-{ id:'harmonic', title:'Harmonic oscillator', category:'math', keywords:['harmonic','oscillator','spring'],
+{ id:'harmonic', title:'Harmonic oscillator', category:'math',
+  keywords:['harmonic','oscillator','spring','shm'],
+  explain:"Models something bouncing back and forth around a resting point, like a mass on a spring, and its total energy.",
   imports:['import math'], code:
 `def shm_position(amplitude: float, angular_freq: float, t: float, phase: float = 0.0) -> float:
     """Position of a simple harmonic oscillator at time t."""
@@ -752,7 +1126,9 @@ plt.xlabel("t (s)"); plt.ylabel("position")
 plt.savefig("harmonic_motion.png")
 print("Saved plot to harmonic_motion.png")` },
 
-{ id:'random_walk', title:'Random walk', category:'math', keywords:['randomwalk','walk'],
+{ id:'random_walk', title:'Random walk', category:'math',
+  keywords:['randomwalk','walk','brownian'],
+  explain:"Simulates a value that moves randomly up or down at each step — the basic model behind Brownian motion and random noise.",
   imports:['import random'], code:
 `def random_walk_1d(steps: int) -> list:
     """Simulate a 1D random walk and return the position history."""
@@ -774,7 +1150,9 @@ plt.xlabel("step"); plt.ylabel("position")
 plt.savefig("random_walk.png")
 print("Saved plot to random_walk.png")` },
 
-{ id:'monte_carlo', title:'Monte Carlo (pi)', category:'math', keywords:['montecarlo','monte','pi'],
+{ id:'monte_carlo', title:'Monte Carlo (pi)', category:'math',
+  keywords:['montecarlo','monte','estimate'],
+  explain:"Estimates the value of pi by randomly scattering points and checking how many land inside a circle — a classic Monte Carlo method.",
   imports:['import random'], code:
 `def estimate_pi(num_samples: int = 100000) -> float:
     """Estimate pi using Monte Carlo sampling of a unit circle."""
@@ -790,7 +1168,9 @@ print("Saved plot to random_walk.png")` },
     assert 2.9 < pi_estimate < 3.4`,
   plot:null },
 
-{ id:'rk4', title:'RK4 ODE solver', category:'math', keywords:['rk4','ode','differential'],
+{ id:'rk4', title:'RK4 ODE solver', category:'math',
+  keywords:['rk4','ode','differential','rungekutta'],
+  explain:"Numerically solves a differential equation step by step, using four sample slopes per step for high accuracy.",
   imports:['from typing import Callable'], code:
 `def rk4_step(f: Callable[[float, float], float], t: float, y: float, h: float) -> float:
     """Advance one Runge-Kutta 4th order step for dy/dt = f(t, y)."""
@@ -824,15 +1204,85 @@ plt.title("RK4 solution: dy/dt = -y")
 plt.xlabel("t"); plt.ylabel("y")
 plt.savefig("rk4_solution.png")
 print("Saved plot to rk4_solution.png")` },
+
+{ id:'linear_regression', title:'Linear regression', category:'math',
+  keywords:['linearregression','regression'],
+  explain:"Fits the best straight line through a set of points using least squares — the simplest form of predictive modeling.",
+  imports:[], code:
+`def linear_regression(xs: list, ys: list) -> tuple:
+    """Return (slope, intercept) of the best-fit line through (xs, ys) via least squares."""
+    n = len(xs)
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    denominator = sum((x - mean_x) ** 2 for x in xs)
+    slope = numerator / denominator
+    intercept = mean_y - slope * mean_x
+    return slope, intercept`,
+  demo:()=>`xs = [1, 2, 3, 4, 5]
+ys = [2, 4, 5, 4, 5]
+slope, intercept = linear_regression(xs, ys)
+print(f"best fit line: y = {slope:.2f}x + {intercept:.2f}")`,
+  test:`def test_linear_regression():
+    slope, intercept = linear_regression([1, 2, 3], [2, 4, 6])
+    assert abs(slope - 2) < 0.01`,
+  plot:null },
+
+{ id:'stats_summary', title:'Statistics summary', category:'math',
+  keywords:['statistics','stats','summary'],
+  explain:"Computes the mean, median, and standard deviation of a dataset — the basic descriptive statistics for any set of numbers.",
+  imports:['import statistics'], code:
+`def summarize(data: list) -> dict:
+    """Return mean, median, and standard deviation for a list of numbers."""
+    return {
+        "mean": statistics.mean(data),
+        "median": statistics.median(data),
+        "stdev": statistics.stdev(data) if len(data) > 1 else 0.0,
+    }`,
+  demo:()=>`print(summarize([4, 8, 15, 16, 23, 42]))`,
+  test:`def test_summarize():
+    s = summarize([1, 2, 3, 4, 5])
+    assert s["mean"] == 3`,
+  plot:null },
+
+{ id:'pendulum', title:'Pendulum motion', category:'math',
+  keywords:['pendulum'],
+  explain:"Models a simple pendulum's swing period and angle over time, valid for small swing angles.",
+  imports:['import math'], code:
+`def pendulum_period(length: float, gravity: float = 9.81) -> float:
+    """Return the period of a simple pendulum for small swing angles."""
+    return 2 * math.pi * math.sqrt(length / gravity)
+
+
+def pendulum_angle(amplitude: float, length: float, t: float, gravity: float = 9.81) -> float:
+    """Return the pendulum's angle at time t (small-angle approximation)."""
+    omega = math.sqrt(gravity / length)
+    return amplitude * math.cos(omega * t)`,
+  demo:()=>`print("period for 1m pendulum:", round(pendulum_period(1.0), 3), "s")`,
+  test:`def test_pendulum_period():
+    assert pendulum_period(1.0) > 0`,
+  plot:()=>`ts = [i * 0.05 for i in range(200)]
+ys = [pendulum_angle(0.2, 1.0, t) for t in ts]
+plt.plot(ts, ys)
+plt.title("Pendulum angle over time")
+plt.xlabel("t (s)"); plt.ylabel("angle (rad)")
+plt.savefig("pendulum_motion.png")
+print("Saved plot to pendulum_motion.png")` },
 ];
 
 const MODIFIERS = {
-  tests:     { label:'Tests',      trigger:'tests',     keywords:['test','tests','pytest','unittest'] },
-  benchmark: { label:'Benchmark',  trigger:'benchmark',  keywords:['benchmark','timing','perf','performance'] },
-  cli:       { label:'CLI',        trigger:'cli',        keywords:['cli','argparse','commandline'] },
-  plot:      { label:'Plot',       trigger:'plot',       keywords:['plot','visualize','chart','matplotlib'] },
-  logging:   { label:'Logging',    trigger:'logging',    keywords:['log','logging'] },
-  seed:      { label:'Seed',       trigger:'seed',       keywords:['seed','reproducible','deterministic'] },
+  tests:     { label:'Tests',      trigger:'tests',     keywords:['test','tests','pytest','unittest'],
+               explain:"Adds automated pytest-style checks that verify each generated function behaves correctly." },
+  benchmark: { label:'Benchmark',  trigger:'benchmark', keywords:['benchmark','timing','perf','performance'],
+               explain:"Times how long the generated code takes to run and prints the elapsed time." },
+  cli:       { label:'CLI',        trigger:'cli',       keywords:['cli','argparse','commandline'],
+               explain:"Adds a command-line interface so you can pick which component to run when you launch the file." },
+  plot:      { label:'Plot',       trigger:'plot',      keywords:['plot','visualize','chart','matplotlib'],
+               explain:"Adds matplotlib charts for components that produce visual data, saved as PNG files." },
+  logging:   { label:'Logging',    trigger:'logging',   keywords:['log','logging'],
+               explain:"Replaces ad hoc prints with Python's logging module, the standard way real programs report status." },
+  seed:      { label:'Seed',       trigger:'seed',      keywords:['seed','reproducible','deterministic'],
+               explain:"Fixes the random number generator's starting point so random results are the same every run." },
 };
 
 const CATEGORIES = [
@@ -844,10 +1294,64 @@ const CATEGORIES = [
   {id:'mods', label:'Modifiers'},
 ];
 
+const DICTIONARY = [
+  {term:"Function (def)", def:"A named, reusable block of code that performs a task. In Python you create one with the def keyword."},
+  {term:"Class", def:"A blueprint for creating objects that bundle data and the functions that work on that data together."},
+  {term:"Object", def:"A specific instance created from a class — one particular Stack you made, not the Stack blueprint itself."},
+  {term:"Method", def:"A function that belongs to a class and works on that class's data."},
+  {term:"Variable", def:"A named container that holds a value, like x = 5."},
+  {term:"Argument / Parameter", def:"A value you pass into a function so it has something to work with."},
+  {term:"Return statement", def:"The line inside a function that sends a result back to whoever called it."},
+  {term:"Loop (for / while)", def:"Code that repeats — for repeats over a fixed range or collection, while repeats until a condition becomes false."},
+  {term:"Recursion", def:"A function that calls itself on a smaller version of the same problem, until it reaches a simple base case."},
+  {term:"List", def:"An ordered, changeable collection of values, written like [1, 2, 3]."},
+  {term:"Dictionary (dict)", def:"A collection of key-value pairs for fast lookups, written like {'name': 'Ada'}."},
+  {term:"Tuple", def:"Like a list, but unchangeable once created — often used for fixed groups of values like coordinates."},
+  {term:"Set", def:"An unordered collection with no duplicate values, useful for fast membership checks."},
+  {term:"Boolean", def:"A value that's either True or False."},
+  {term:"String", def:'Text data, written between quotes like "hello".'},
+  {term:"Import / module", def:"Pulls in code someone else already wrote so you can use it, e.g. import random."},
+  {term:"Algorithm", def:"A step-by-step procedure for solving a problem — sorting a list or searching for an item are both algorithms."},
+  {term:"Big O / time complexity", def:"A rough measure of how much slower an algorithm gets as input grows — O(n) is roughly proportional, O(n^2) grows much faster."},
+  {term:"Exception / try-except", def:"Python's way of handling errors gracefully instead of crashing — code in try runs, and except catches problems."},
+  {term:"Decorator", def:"A function that wraps another function to add extra behavior, written with an @ symbol above a function."},
+  {term:"Lambda", def:"A small, unnamed function written in a single line, often used for quick throwaway logic."},
+  {term:"API", def:"A defined way for two pieces of software to talk to each other — like a menu of requests a program will respond to."},
+  {term:"REST", def:"A common style for building web APIs around standard actions like GET (read) and POST (create)."},
+  {term:"JSON", def:"A lightweight text format for representing structured data, widely used to send data over the web."},
+  {term:"Database", def:"A structured place to store data long-term so it's still there after your program stops running."},
+  {term:"SQL", def:"The language used to ask a database questions and give it commands, like 'find all rows where...'."},
+  {term:"Server / client", def:"A server waits for requests and responds to them; a client is whatever sends the request, like a browser or app."},
+  {term:"Framework (e.g. Flask)", def:"A pre-built structure that handles common plumbing so you can focus on your app's specific logic."},
+  {term:"Test / assertion", def:"Code that checks your other code actually works. An assert statement fails loudly if something isn't true."},
+  {term:"pytest", def:"A popular tool for running Python test functions and reporting which ones passed or failed."},
+  {term:"CLI / argparse", def:"A command-line interface — letting someone run your program with typed options like --run bubble_sort."},
+  {term:"Type hint", def:"An optional note in the code, like n: int, telling readers and tools what type of value is expected."},
+  {term:"Docstring", def:"A short description inside triple quotes at the start of a function, explaining what it does."},
+  {term:"None", def:"Python's way of representing 'nothing' or 'no value yet'."},
+  {term:"Index", def:"The position of an item in a list, counting from 0."},
+  {term:"Iterate", def:"To go through a collection one item at a time, usually with a loop."},
+];
+
 let activeCat = 'all';
 
 /* ============================================================
-   UI setup
+   Navigation
+   ============================================================ */
+function setupNav(){
+  document.querySelectorAll('.navtab').forEach(tab=>{
+    tab.onclick = ()=>{
+      document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      const page = tab.getAttribute('data-page');
+      document.getElementById('page-compose').style.display = page==='compose' ? '' : 'none';
+      document.getElementById('page-explain').style.display = page==='explain' ? '' : 'none';
+    };
+  });
+}
+
+/* ============================================================
+   UI setup — compose page
    ============================================================ */
 function indent(str, spaces){
   const pad = ' '.repeat(spaces);
@@ -888,35 +1392,55 @@ function renderChips(){
 }
 
 /* ============================================================
+   Word normalization — lightweight stemming so plurals/verb forms
+   like "sorting", "tested", "queues" still match base keywords.
+   ============================================================ */
+function normalize(tok){
+  if(tok.length > 4 && tok.endsWith('ies')) return tok.slice(0, -3) + 'y';
+  const specialEsEndings = ['s','x','z','h'];
+  if(tok.length > 4 && tok.endsWith('es') && specialEsEndings.includes(tok[tok.length - 3])) return tok.slice(0, -2);
+  if(tok.length > 4 && tok.endsWith('ing')) return tok.slice(0, -3);
+  if(tok.length > 3 && tok.endsWith('ed')) return tok.slice(0, -2);
+  if(tok.length > 3 && tok.endsWith('s') && !tok.endsWith('ss')) return tok.slice(0, -1);
+  return tok;
+}
+
+/* ============================================================
    Generation
    ============================================================ */
 function generate(){
   const raw = document.getElementById('kwInput').value.trim();
   const outWrap = document.getElementById('outputWrap');
   const infoEl = document.getElementById('matchedInfo');
+  const explainEl = document.getElementById('explainBox');
 
   if(!raw){
     outWrap.innerHTML = '<div class="empty-msg">Type a keyword first — try "quicksort" or tap a chip above.</div>';
     infoEl.innerHTML = '';
+    explainEl.innerHTML = '';
     return;
   }
 
   const rawLower = raw.toLowerCase();
   const tokens = rawLower.split(/[^a-z0-9]+/).filter(Boolean);
-  const tokenSet = new Set(tokens);
+  const tokenSet = new Set();
+  tokens.forEach(t => { tokenSet.add(t); tokenSet.add(normalize(t)); });
   const numMatch = raw.match(/\d+/);
   const N = numMatch ? parseInt(numMatch[0], 10) : null;
 
-  // Exact token match only (no raw substring fallback) — avoids false hits like
-  // "api" incidentally containing the substring "pi".
-  const matchKw = (kw)=> tokenSet.has(kw);
+  const paddedRaw = ' ' + rawLower + ' ';
+  const matchKw = (kw)=>{
+    if(kw.includes(' ')) return paddedRaw.includes(' ' + kw + ' ');
+    return tokenSet.has(kw);
+  };
 
   const matched = LIB.filter(item => item.keywords.some(matchKw));
   const modsMatched = Object.keys(MODIFIERS).filter(name => MODIFIERS[name].keywords.some(matchKw));
 
   if(matched.length === 0){
-    outWrap.innerHTML = '<div class="empty-msg">No library components matched those keywords. Scroll to the keyword library below, or try words like "flask", "snake", "orbital", "bst".</div>';
+    outWrap.innerHTML = '<div class="empty-msg">No library components matched those keywords. Check the Explain tab for the full list of trigger words, or try something like "flask", "snake", "orbital", "bst".</div>';
     infoEl.innerHTML = '';
+    explainEl.innerHTML = '';
     return;
   }
 
@@ -999,18 +1523,28 @@ function generate(){
 
   infoEl.innerHTML = 'Matched: <b>' + matched.map(m=>m.title).join('</b>, <b>') + '</b>' +
     (modsMatched.length ? ' &nbsp;|&nbsp; Modifiers: <span class="mod-tag">' + modsMatched.map(m=>MODIFIERS[m].label).join('</span>, <span class="mod-tag">') + '</span>' : '');
+
+  let explainHtml = '<div class="explainBox"><b>What this does, in plain English:</b><ul>';
+  matched.forEach(m => { explainHtml += '<li><b>' + m.title + '</b> — ' + m.explain + '</li>'; });
+  explainHtml += '</ul>';
+  if(modsMatched.length){
+    explainHtml += '<b>Modifiers applied:</b><ul>';
+    modsMatched.forEach(name => { explainHtml += '<li><b>' + MODIFIERS[name].label + '</b> — ' + MODIFIERS[name].explain + '</li>'; });
+    explainHtml += '</ul>';
+  }
+  explainHtml += '</div>';
+  explainEl.innerHTML = explainHtml;
 }
 
 function clearAll(){
   document.getElementById('kwInput').value = '';
   document.getElementById('outputWrap').innerHTML = '<div class="empty-msg">No code yet — enter keywords above and tap Compose code.</div>';
   document.getElementById('matchedInfo').innerHTML = '';
+  document.getElementById('explainBox').innerHTML = '';
   window.__generatedCode = '';
 }
 
 function legacyCopy(text){
-  // Fallback for contexts where navigator.clipboard is unavailable or blocked
-  // (e.g. file:// origins, some in-app browsers, older WebViews).
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.setAttribute('readonly', '');
@@ -1048,7 +1582,7 @@ function copyCode(){
       setTimeout(()=>msg.textContent='', 1500);
     } else {
       selectOutputForManualCopy();
-      msg.textContent = 'auto-copy blocked — text selected, use your browser\'s Copy';
+      msg.textContent = "auto-copy blocked — text selected, use your browser's Copy";
       setTimeout(()=>msg.textContent='', 3500);
     }
   };
@@ -1061,29 +1595,44 @@ function copyCode(){
 }
 
 /* ============================================================
-   Legend
+   Explain page — dictionary + library reference
    ============================================================ */
-function renderLegend(){
-  const el = document.getElementById('legendArea');
+function renderDictionary(filter){
+  const el = document.getElementById('dictList');
+  const f = (filter || '').toLowerCase();
+  const rows = DICTIONARY.filter(d => !f || d.term.toLowerCase().includes(f) || d.def.toLowerCase().includes(f));
+  if(rows.length === 0){
+    el.innerHTML = '<div class="empty-msg">No terms match that search.</div>';
+    return;
+  }
+  el.innerHTML = rows.map(d => '<div class="dictEntry"><b>' + d.term + '</b>' + d.def + '</div>').join('');
+}
+
+function renderLibraryReference(){
+  const el = document.getElementById('libraryReference');
   let html = '';
   ['algo','web','game','math'].forEach(cat=>{
     const label = CATEGORIES.find(c=>c.id===cat).label;
     html += '<span class="cat">' + label + '</span>';
     LIB.filter(i=>i.category===cat).forEach(i=>{
-      html += i.title + ' &rarr; <code>' + i.keywords.join('</code>, <code>') + '</code><br>';
+      html += '<div class="libItem"><b>' + i.title + '</b> — trigger words: <span class="kw">' + i.keywords.join('</span>, <span class="kw">') + '</span>';
+      html += '<span class="desc">' + i.explain + '</span></div>';
     });
   });
   html += '<span class="cat">Modifiers (combine with anything)</span>';
   Object.values(MODIFIERS).forEach(m=>{
-    html += m.label + ' &rarr; <code>' + m.keywords.join('</code>, <code>') + '</code><br>';
+    html += '<div class="libItem"><b>' + m.label + '</b> — trigger words: <span class="kw">' + m.keywords.join('</span>, <span class="kw">') + '</span>';
+    html += '<span class="desc">' + m.explain + '</span></div>';
   });
-  html += '<span class="cat">Numbers</span>Any digit in your input (e.g. "fibonacci 20") is used as a parameter where relevant.';
+  html += '<span class="cat">Numbers</span><div class="libItem">Any digit in your input (e.g. "fibonacci 20") is used as a parameter where relevant.</div>';
   el.innerHTML = html;
 }
 
+setupNav();
 renderTabs();
 renderChips();
-renderLegend();
+renderDictionary('');
+renderLibraryReference();
 </script>
 </body>
 </html>
