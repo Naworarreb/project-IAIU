@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MUJUN // Cursed Technique Reader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.22.0/tf.min.js"></script>
+<script src="https://unpkg.com/@tensorflow-models/handpose@0.0.7/dist/handpose.js"></script>
+<style>
+  :root{
+    --void:#07070c;
+    --void2:#0d0e17;
+    --cursed-blue:#3fd1ff;
+    --cursed-red:#ff2f4e;
+    --hollow-purple:#b34bff;
+    --seal-gold:#c9a24b;
+    --ink:#e9e6dc;
+    --line:rgba(201,162,75,0.25);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    background:var(--void);
+    font-family:'Iowan Old Style','Palatino Linotype',Georgia,serif;
+    color:var(--ink);
+    -webkit-user-select:none;user-select:none;
+  }
+  #stage{position:fixed;inset:0;}
+  video{display:none;}
+  canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
+  #fx{pointer-events:none;}
+
+  /* ---- HUD frame ---- */
+  #hud{
+    position:fixed;inset:0;pointer-events:none;
+    display:flex;flex-direction:column;justify-content:space-between;
+    padding:18px;
+    z-index:5;
+  }
+  .hud-row{display:flex;justify-content:space-between;align-items:flex-start;}
+  .brand{
+    font-size:13px;letter-spacing:0.35em;text-transform:uppercase;
+    color:var(--seal-gold);opacity:0.85;
+    font-family:'Courier New',monospace;
+  }
+  .brand b{color:var(--ink);letter-spacing:0.2em;}
+  .status{
+    font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.15em;
+    color:var(--ink);opacity:0.65;text-align:right;
+  }
+  .status .dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:#555;margin-right:6px;position:relative;top:-1px;
+  }
+  .status.live .dot{background:var(--cursed-blue);box-shadow:0 0 8px var(--cursed-blue);}
+
+  /* ---- technique readout (bottom) ---- */
+  #readout{
+    align-self:center;text-align:center;pointer-events:none;
+    transition:opacity 0.4s ease;
+  }
+  #technique-name{
+    font-size:15px;letter-spacing:0.45em;text-transform:uppercase;
+    color:var(--seal-gold);font-family:'Courier New',monospace;
+    margin-bottom:4px;opacity:0.8;
+  }
+  #technique-title{
+    font-size:44px;font-weight:600;letter-spacing:0.06em;
+    text-shadow:0 0 24px currentColor;
+    transition:color 0.3s ease;
+  }
+  #technique-sub{
+    font-size:12px;letter-spacing:0.2em;color:var(--ink);opacity:0.55;
+    margin-top:6px;font-family:'Courier New',monospace;
+  }
+
+  /* ---- charge ring (bottom center, small) ---- */
+  #charge-wrap{
+    display:flex;justify-content:center;margin-top:14px;
+  }
+  #charge-bar{
+    width:220px;height:3px;background:rgba(255,255,255,0.08);
+    position:relative;overflow:hidden;
+  }
+  #charge-fill{
+    position:absolute;left:0;top:0;height:100%;width:0%;
+    background:var(--cursed-red);box-shadow:0 0 10px var(--cursed-red);
+    transition:width 0.05s linear;
+  }
+
+  /* ---- legend ---- */
+  #legend{
+    position:fixed;left:18px;bottom:18px;
+    font-family:'Courier New',monospace;font-size:10.5px;letter-spacing:0.08em;
+    color:var(--ink);opacity:0.55;line-height:1.9;pointer-events:none;
+    z-index:5;
+  }
+  #legend div span{color:var(--seal-gold);opacity:1;display:inline-block;width:15px;}
+
+  /* ---- start overlay ---- */
+  #start-screen{
+    position:fixed;inset:0;z-index:20;
+    background:radial-gradient(circle at 50% 40%, #10121c 0%, #07070c 75%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;
+  }
+  #seal{
+    width:120px;height:120px;border-radius:50%;
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:28px;position:relative;
+  }
+  #seal::before{
+    content:'';position:absolute;inset:12px;border-radius:50%;
+    border:1px solid var(--line);
+  }
+  #seal::after{
+    content:'';position:absolute;inset:-1px;border-radius:50%;
+    border:1px solid transparent;border-top-color:var(--seal-gold);
+    animation:spin 6s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #seal-glyph{font-size:34px;color:var(--seal-gold);opacity:0.9;font-family:'Iowan Old Style',Georgia,serif;}
+  #start-screen h1{
+    font-size:26px;font-weight:600;letter-spacing:0.08em;margin:0 0 10px;
+  }
+  #start-screen p{
+    max-width:380px;font-size:13px;line-height:1.7;color:var(--ink);opacity:0.6;
+    margin:0 0 30px;font-family:'Courier New',monospace;letter-spacing:0.02em;
+  }
+  #start-btn{
+    background:transparent;color:var(--ink);
+    border:1px solid var(--seal-gold);
+    padding:14px 34px;font-size:12px;letter-spacing:0.3em;text-transform:uppercase;
+    font-family:'Courier New',monospace;cursor:pointer;
+    transition:all 0.25s ease;
+  }
+  #start-btn:hover{background:var(--seal-gold);color:#161005;}
+  #start-error{
+    margin-top:18px;font-size:11px;color:var(--cursed-red);font-family:'Courier New',monospace;
+    max-width:360px;line-height:1.6;display:none;
+  }
+  #loading-line{
+    margin-top:18px;font-size:11px;color:var(--seal-gold);font-family:'Courier New',monospace;
+    display:none;letter-spacing:0.15em;
+  }
+
+  @media (max-width:520px){
+    #technique-title{font-size:30px;}
+    #legend{font-size:9.5px;}
+    #charge-bar{width:160px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    #seal::after{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="cam"></canvas>
+  <canvas id="fx"></canvas>
+</div>
+
+<div id="hud">
+  <div class="hud-row">
+    <div class="brand"><b>MUJUN</b> // cursed technique reader</div>
+    <div class="status" id="status"><span class="dot"></span>OFFLINE</div>
+  </div>
+
+  <div id="readout">
+    <div id="technique-name">standing by</div>
+    <div id="technique-title" style="color:var(--seal-gold);opacity:0.4;">— no sign read —</div>
+    <div id="technique-sub">show a hand to the lens</div>
+    <div id="charge-wrap"><div id="charge-bar"><div id="charge-fill"></div></div></div>
+  </div>
+
+  <div style="height:26px;"></div>
+</div>
+
+<div id="legend">
+  <div><span>✋</span>open hand — Infinity</div>
+  <div><span>✊</span>hold fist — Domain Expansion</div>
+  <div><span>🤏</span>pinch — Blue (pull)</div>
+  <div><span>✌</span>peace sign — Hollow Purple</div>
+  <div><span>👊</span>quick fist — Red (push)</div>
+</div>
+
+<div id="start-screen">
+  <div id="seal"><div id="seal-glyph">術</div></div>
+  <h1>Cursed Technique Reader</h1>
+  <p>Point your camera at a hand. Five sealed forms are recognized. Grant camera access to begin reading cursed energy.</p>
+  <button id="start-btn">Open the lens</button>
+  <div id="loading-line">loading hand model…</div>
+  <div id="start-error"></div>
+</div>
+
+<script>
+(function(){
+  const video = document.getElementById('video');
+  const camCanvas = document.getElementById('cam');
+  const fxCanvas = document.getElementById('fx');
+  const camCtx = camCanvas.getContext('2d');
+  const fxCtx = fxCanvas.getContext('2d');
+  const startScreen = document.getElementById('start-screen');
+  const startBtn = document.getElementById('start-btn');
+  const startError = document.getElementById('start-error');
+  const loadingLine = document.getElementById('loading-line');
+  const statusEl = document.getElementById('status');
+  const techName = document.getElementById('technique-name');
+  const techTitle = document.getElementById('technique-title');
+  const techSub = document.getElementById('technique-sub');
+  const chargeFill = document.getElementById('charge-fill');
+
+  let model = null;
+  let running = false;
+  let W = 0, H = 0;
+
+  function resize(){
+    W = window.innerWidth; H = window.innerHeight;
+    [camCanvas, fxCanvas].forEach(c=>{ c.width = W; c.height = H; });
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------- geometry helpers ----------------
+  function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+
+  function analyzeHand(lm){
+    // lm: array of 21 [x,y,z]
+    const wrist = lm[0];
+    const palmSize = dist(wrist, lm[9]) || 1;
+
+    function extended(tip, mcp){
+      return dist(lm[tip], wrist) > dist(lm[mcp], wrist) * 1.12;
+    }
+    const thumbOut = dist(lm[4], lm[17]) > palmSize * 1.05;
+    const indexOut = extended(8,5);
+    const middleOut = extended(12,9);
+    const ringOut = extended(16,13);
+    const pinkyOut = extended(20,17);
+
+    const pinchDist = dist(lm[4], lm[8]) / palmSize;
+
+    const extCount = [thumbOut, indexOut, middleOut, ringOut, pinkyOut].filter(Boolean).length;
+
+    let gesture = 'none';
+    if (pinchDist < 0.35 && middleOut===false && ringOut===false && pinkyOut===false){
+      gesture = 'pinch';
+    } else if (indexOut && middleOut && !ringOut && !pinkyOut){
+      gesture = 'peace';
+    } else if (extCount >= 4){
+      gesture = 'open';
+    } else if (extCount <= 1 && !thumbOut){
+      gesture = 'fist';
+    }
+
+    // center point for effects, in normalized 0..1 screen space (mirrored)
+    const cx = 1 - (wrist[0] / video.videoWidth || 0.5);
+    const cy = wrist[1] / video.videoHeight || 0.5;
+
+    return { gesture, cx, cy, palmSize };
+  }
+
+  // ---------------- particle / effect engine ----------------
+  const particles = [];
+  function spawn(p){ particles.push(p); }
+
+  function addBurst(x,y,color,count,speedMin,speedMax,life,size){
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2;
+      const s = speedMin + Math.random()*(speedMax-speedMin);
+      spawn({
+        x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+        life, maxLife:life, color, size: size*(0.5+Math.random()*0.8), mode:'burst'
+      });
+    }
+  }
+  function addVortex(x,y,color,count,life){
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2;
+      const r = 80 + Math.random()*220;
+      spawn({
+        x:x+Math.cos(a)*r, y:y+Math.sin(a)*r, cx:x, cy:y,
+        angle:a, radius:r, color, life, maxLife:life, size:2+Math.random()*2.5, mode:'vortex'
+      });
+    }
+  }
+
+  let domainActive = false, domainT = 0, domainTimer=null;
+  let beamActive = false, beamT = 0;
+  let ringPulse = 0;
+
+  function triggerEffect(name, cx, cy){
+    const x = cx*W, y = cy*H;
+    if (name==='open'){
+      ringPulse = 1;
+    } else if (name==='fist'){
+      addBurst(x,y,'59,90,255'.split(',').join(','), 0,0,0,0,0); // no-op placeholder
+      addBurst(x,y,'255,47,60',46,3,9,900,4);
+    } else if (name==='pinch'){
+      addVortex(x,y,'63,209,255',60,1100);
+    } else if (name==='peace'){
+      beamActive = true; beamT = 0;
+      addBurst(x,y,'179,75,255',70,2,11,1200,5);
+    }
+  }
+
+  function startDomain(){
+    domainActive = true; domainT = 0;
+    techName.textContent = 'domain expansion';
+    techTitle.textContent = 'UNLIMITED VOID';
+    techTitle.style.color = '#dcb8ff';
+    techSub.textContent = 'sure hit effect — barrier established';
+    clearTimeout(domainTimer);
+    domainTimer = setTimeout(()=>{ domainActive = false; }, 3200);
+  }
+
+  function updateParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.life -= dt;
+      if (p.life<=0){ particles.splice(i,1); continue; }
+      if (p.mode==='burst'){
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.965; p.vy *= 0.965;
+      } else if (p.mode==='vortex'){
+        p.angle += 0.06;
+        p.radius *= 0.975;
+        p.x = p.cx + Math.cos(p.angle)*p.radius;
+        p.y = p.cy + Math.sin(p.angle)*p.radius;
+      }
+    }
+  }
+
+  function drawParticles(){
+    fxCtx.globalCompositeOperation = 'lighter';
+    for(const p of particles){
+      const t = p.life/p.maxLife;
+      fxCtx.beginPath();
+      fxCtx.fillStyle = `rgba(${p.color},${t})`;
+      fxCtx.shadowColor = `rgba(${p.color},${t})`;
+      fxCtx.shadowBlur = 12;
+      fxCtx.arc(p.x,p.y,p.size*t+1,0,Math.PI*2);
+      fxCtx.fill();
+    }
+    fxCtx.shadowBlur = 0;
+    fxCtx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawHandRing(hand){
+    if (!hand) return;
+    const x = hand.cx*W, y = hand.cy*H;
+    const r = Math.max(40, hand.palmSize*1.6);
+    fxCtx.save();
+    fxCtx.globalCompositeOperation = 'lighter';
+
+    let color = '201,162,75';
+    if (hand.gesture==='open') color = '63,209,255';
+    if (hand.gesture==='fist') color = '255,47,60';
+    if (hand.gesture==='pinch') color = '63,209,255';
+    if (hand.gesture==='peace') color = '179,75,255';
+
+    fxCtx.strokeStyle = `rgba(${color},0.7)`;
+    fxCtx.lineWidth = 1.4;
+    fxCtx.shadowColor = `rgba(${color},0.9)`;
+    fxCtx.shadowBlur = 16;
+    fxCtx.beginPath();
+    fxCtx.arc(x,y,r,0,Math.PI*2);
+    fxCtx.stroke();
+
+    if (hand.gesture==='open'){
+      fxCtx.beginPath();
+      fxCtx.arc(x,y,r*0.7,0,Math.PI*2);
+      fxCtx.strokeStyle = `rgba(${color},0.35)`;
+      fxCtx.stroke();
+    }
+    fxCtx.shadowBlur = 0;
+    fxCtx.restore();
+  }
+
+  function drawDomain(dt){
+    domainT += dt;
+    const t = Math.min(domainT/600,1);
+    fxCtx.save();
+    fxCtx.fillStyle = `rgba(6,4,14,${0.55*t})`;
+    fxCtx.fillRect(0,0,W,H);
+
+    const cx=W/2, cy=H/2;
+    fxCtx.globalCompositeOperation='lighter';
+    for(let i=0;i<5;i++){
+      const rr = (domainT*0.35 + i*140) % (Math.max(W,H));
+      fxCtx.beginPath();
+      fxCtx.strokeStyle = `rgba(179,75,255,${0.25*(1-rr/Math.max(W,H))})`;
+      fxCtx.lineWidth=1;
+      fxCtx.arc(cx,cy,rr,0,Math.PI*2);
+      fxCtx.stroke();
+    }
+    fxCtx.globalCompositeOperation='source-over';
+
+    fxCtx.textAlign='center';
+    fxCtx.fillStyle = `rgba(220,184,255,${0.9*Math.min(t*1.4,1)})`;
+    fxCtx.font = "600 13px 'Courier New', monospace";
+    fxCtx.fillText('十  無  量  空  処', cx, cy - 40);
+    fxCtx.restore();
+  }
+
+  function drawBeam(dt, hand){
+    beamT += dt;
+    const life = 900;
+    if (beamT > life){ beamActive=false; return; }
+    const t = 1 - beamT/life;
+    const x = hand ? hand.cx*W : W/2;
+    const y = hand ? hand.cy*H : H/2;
+    fxCtx.save();
+    fxCtx.globalCompositeOperation='lighter';
+    const grad = fxCtx.createLinearGradient(x,y,W,y);
+    grad.addColorStop(0, `rgba(179,75,255,${0.85*t})`);
+    grad.addColorStop(1, `rgba(179,75,255,0)`);
+    fxCtx.fillStyle = grad;
+    fxCtx.fillRect(x, y-18*t, W-x, 36*t);
+    fxCtx.restore();
+  }
+
+  // ---------------- gesture -> technique text ----------------
+  const TECH = {
+    none:  {name:'standing by', title:'— no sign read —', sub:'show a hand to the lens', color:'rgba(201,162,75,0.4)'},
+    open:  {name:'infinity', title:'INFINITY', sub:'nothing reaches — passive barrier held', color:'#3fd1ff'},
+    fist:  {name:'reversed cursed technique', title:'RED', sub:'maximum output — repulsion', color:'#ff2f4e'},
+    pinch: {name:'cursed technique lapse', title:'BLUE', sub:'convergence — attraction', color:'#3fd1ff'},
+    peace: {name:'reversal: red + lapse: blue', title:'HOLLOW PURPLE', sub:'imaginary mass collision', color:'#b34bff'}
+  };
+
+  let lastGesture = 'none';
+  let fistHoldStart = 0;
+  let lastFistTime = 0;
+
+  function updateReadout(gesture){
+    if (gesture === lastGesture) return;
+    const t = TECH[gesture] || TECH.none;
+    techName.textContent = t.name;
+    techTitle.textContent = t.title;
+    techTitle.style.color = t.color;
+    techSub.textContent = t.sub;
+    lastGesture = gesture;
+  }
+
+  // ---------------- main loop ----------------
+  let prevTime = performance.now();
+
+  async function loop(){
+    if (!running) return;
+    const now = performance.now();
+    const dt = now - prevTime;
+    prevTime = now;
+
+    camCtx.save();
+    camCtx.translate(W,0); camCtx.scale(-1,1);
+    if (video.videoWidth){
+      camCtx.drawImage(video, 0, 0, W, H);
+    }
+    camCtx.restore();
+
+    fxCtx.clearRect(0,0,W,H);
+
+    let hand = null;
+    try{
+      const preds = await model.estimateHands(video, true);
+      if (preds && preds.length){
+        hand = analyzeHand(preds[0].landmarks);
+      }
+    }catch(e){ /* ignore per-frame errors */ }
+
+    if (hand){
+      updateReadout(hand.gesture);
+      drawHandRing(hand);
+
+      if (hand.gesture === 'fist'){
+        if (fistHoldStart===0) fistHoldStart = now;
+        const held = now - fistHoldStart;
+        const pct = Math.min(held/1600,1)*100;
+        chargeFill.style.width = pct+'%';
+        if (held > 1600 && !domainActive){
+          startDomain();
+          fistHoldStart = now - 100000; // prevent immediate retrigger
+        } else if (now - lastFistTime > 900 && held < 1600){
+          lastFistTime = now;
+        }
+      } else {
+        if (fistHoldStart && (now-fistHoldStart) < 1600 && (now-fistHoldStart) > 120 && lastGesture==='fist'){
+          // released before domain threshold -> quick Red push
+        }
+        fistHoldStart = 0;
+        chargeFill.style.width = '0%';
+      }
+
+      if (hand.gesture === 'pinch' && lastGesture==='pinch'){
+        if (Math.random() < 0.15) addVortex(hand.cx*W, hand.cy*H, '63,209,255', 6, 700);
+      }
+      if (hand.gesture === 'peace' && !beamActive && Math.random()<0.3){
+        triggerEffect('peace', hand.cx, hand.cy);
+      }
+      if (hand.gesture === 'fist' && Math.random()<0.12){
+        triggerEffect('fist', hand.cx, hand.cy);
+      }
+    } else {
+      updateReadout('none');
+      chargeFill.style.width = '0%';
+      fistHoldStart = 0;
+    }
+
+    updateParticles(dt);
+    drawParticles();
+    if (beamActive) drawBeam(dt, hand);
+    if (domainActive) drawDomain(dt);
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------- boot ----------------
+  async function begin(){
+    startBtn.disabled = true;
+    startBtn.textContent = 'requesting camera…';
+    startError.style.display='none';
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+      video.srcObject = stream;
+      await video.play();
+    }catch(e){
+      startError.textContent = 'Camera access was blocked or unavailable. Allow camera permission for this page and try again.';
+      startError.style.display='block';
+      startBtn.disabled = false;
+      startBtn.textContent = 'Open the lens';
+      return;
+    }
+
+    loadingLine.style.display='block';
+    try{
+      model = await handpose.load();
+    }catch(e){
+      startError.textContent = 'Hand-tracking model failed to load (network restrictions may block it in this environment). Try opening this file directly in a browser.';
+      startError.style.display='block';
+      startBtn.disabled = false;
+      startBtn.textContent = 'Open the lens';
+      loadingLine.style.display='none';
+      return;
+    }
+
+    startScreen.style.display='none';
+    statusEl.classList.add('live');
+    statusEl.innerHTML = '<span class="dot"></span>READING';
+    running = true;
+    prevTime = performance.now();
+    loop();
+  }
+
+  startBtn.addEventListener('click', begin);
+})();
+</script>
+</body>
+</html>
