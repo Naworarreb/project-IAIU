@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>QGEN::COMPOSER — Keyword Python Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:      #05082b;
+    --panel:   #0c1450;
+    --panel-2: #101b63;
+    --line:    #2a3690;
+    --cyan:    #6fe3ff;
+    --cyan-dim:#1f5568;
+    --yellow:  #ffd23f;
+    --text:    #eef2ff;
+    --muted:   #8b93d6;
+    --white:   #ffffff;
+    --radius:  6px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Mono', monospace;}
+  body{padding-bottom:50px;}
+
+  /* ---- fake IDE title bar ---- */
+  .titlebar{
+    background:var(--panel-2); border-bottom:2px solid var(--cyan);
+    padding:9px 14px; display:flex; align-items:center; gap:14px;
+    font-size:11px; color:var(--cyan);
+  }
+  .titlebar .dots{display:flex; gap:5px;}
+  .titlebar .dot{width:9px; height:9px; border-radius:50%;}
+  .dot.r{background:#ff6b6b;} .dot.y{background:var(--yellow);} .dot.g{background:#6fffb0;}
+  .titlebar .menu{display:flex; gap:14px; color:var(--muted); font-size:11px;}
+
+  .hero{padding:20px 16px 6px;}
+  .hero .eyebrow{font-size:10.5px; color:var(--yellow); letter-spacing:.16em; text-transform:uppercase; margin-bottom:8px;}
+  .hero h1{font-size:20px; margin:0; color:var(--white); letter-spacing:-0.01em;}
+  .hero h1 span{color:var(--cyan);}
+  .hero p{font-size:12.5px; color:var(--muted); line-height:1.6; margin-top:8px; max-width:60ch;}
+
+  .panel{margin:14px 16px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .panel-head{padding:10px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
+  .panel-head h3{margin:0; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em;}
+  .panel-body{padding:12px;}
+
+  /* ---- REPL-style input ---- */
+  .repl{
+    display:flex; align-items:center; background:#020616; border:1px solid var(--line);
+    border-radius:5px; padding:10px 10px; gap:8px;
+  }
+  .repl .prompt{color:var(--yellow); font-weight:700;}
+  .repl input{
+    flex:1; background:none; border:none; outline:none; color:var(--text);
+    font-family:'IBM Plex Mono', monospace; font-size:14px;
+  }
+  .cursor{display:inline-block; width:8px; height:16px; background:var(--cyan); animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  .tabs{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;}
+  .tab{
+    font-size:10.5px; padding:6px 10px; border-radius:14px; cursor:pointer;
+    border:1px solid var(--line); color:var(--muted); background:var(--panel-2);
+  }
+  .tab.active{background:var(--cyan); color:#031018; border-color:var(--cyan); font-weight:600;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .chip{
+    font-size:11px; padding:6px 9px; border-radius:5px; cursor:pointer;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+  }
+  .chip:active{background:var(--line);}
+  .chip.mod{color:var(--yellow); border-color:#6a5a1f;}
+
+  .btn-row{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .btn{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600;
+    padding:10px 14px; border-radius:5px; cursor:pointer; border:none;
+  }
+  .btn-run{background:linear-gradient(180deg,#8ff0ff,var(--cyan)); color:#021018;}
+  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--muted);}
+  .btn:active{transform:translateY(1px);}
+
+  .matched{margin-top:10px; font-size:11px; color:var(--muted); line-height:1.7;}
+  .matched b{color:var(--cyan);}
+  .matched .mod-tag{color:var(--yellow);}
+
+  /* ---- code output, editor look ---- */
+  .editor{display:flex; background:#020616; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .gutter{
+    background:#01040f; color:#3d4a8f; font-size:11px; text-align:right;
+    padding:10px 8px; user-select:none; line-height:1.6; border-right:1px solid var(--line);
+  }
+  pre{margin:0; padding:10px 12px; overflow-x:auto; font-size:11.5px; line-height:1.6; flex:1; color:#d9e6ff;}
+  .statusbar{
+    display:flex; justify-content:space-between; padding:6px 12px; font-size:10px;
+    color:var(--muted); background:var(--panel-2); border-top:1px solid var(--line);
+  }
+  .empty-msg{font-size:12px; color:var(--muted); padding:8px 2px;}
+
+  .legend{font-size:11px; color:var(--muted); line-height:1.9;}
+  .legend .cat{color:var(--cyan); font-weight:600; margin-top:8px; display:block;}
+  .legend code{color:var(--yellow);}
+
+  footer{margin:22px 16px 4px; font-size:10px; color:var(--muted); text-align:center; line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+  <div class="menu"><span>File</span><span>Edit</span><span>Run</span><span>Help</span></div>
+</div>
+
+<div class="hero">
+  <div class="eyebrow">Rule-based · zero ML · deterministic</div>
+  <h1>QGEN::COMPOSER — <span>Keyword</span> Python Generator</h1>
+  <p>Type keywords, tap a suggestion, or mix several. A fixed template library is matched against your words with plain string logic — no language model involved — and assembled into runnable Python.</p>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h3>Keyword input</h3></div>
+  <div class="panel-body">
+    <div class="repl">
+      <span class="prompt">&gt;&gt;&gt;</span>
+      <input id="kwInput" type="text" placeholder="e.g. quicksort tests cli" autocomplete="off" />
+      <span class="cursor"></span>
+    </div>
+
+    <div class="tabs" id="catTabs"></div>
+    <div class="chips" id="chipArea"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-run" onclick="generate()">▶ Compose code</button>
+      <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="matched" id="matchedInfo"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h3>Generated Python</h3><span style="font-size:10px; color:var(--muted);" id="copyMsg"></span></div>
+  <div class="panel-body">
+    <div id="outputWrap"><div class="empty-msg">No code yet — enter keywords above and tap Compose code.</div></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="copyCode()">📋 Copy code</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h3>Keyword library</h3></div>
+  <div class="panel-body">
+    <div class="legend" id="legendArea"></div>
+  </div>
+</div>
+
+<footer>
+  Every line of output comes from a fixed, human-written template — matching is exact keyword/substring lookup.<br>
+  No generative model is used to produce or alter code in this tool.
+</footer>
+
+<script>
+/* ============================================================
+   TEMPLATE LIBRARY — deterministic, hand-written Python blocks.
+   Matching is done with plain string/token lookup (see generate()).
+   ============================================================ */
+const LIB = [
+// ---------------- ALGORITHMS / DATA STRUCTURES ----------------
+{ id:'bubble_sort', title:'Bubble Sort', category:'algo', keywords:['bubble','bubblesort'],
+  imports:[], code:
+`def bubble_sort(items: list) -> list:
+    """Sort a list in ascending order using the bubble sort algorithm."""
+    arr = items.copy()
+    n = len(arr)
+    for i in range(n):
+        swapped = False
+        for j in range(n - i - 1):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+                swapped = True
+        if not swapped:
+            break
+    return arr`,
+  demo:(N)=>`sample = [8, 3, 5, 1, 9, 2]${N?`[:${Math.max(2,N)}] if len([8,3,5,1,9,2]) > ${N} else [8,3,5,1,9,2]`:''}
+print("bubble_sort:", bubble_sort(sample))`,
+  test:`def test_bubble_sort():
+    assert bubble_sort([3, 1, 2]) == [1, 2, 3]
+    assert bubble_sort([]) == []`,
+  plot:null },
+
+{ id:'quicksort', title:'Quicksort', category:'algo', keywords:['quick','quicksort'],
+  imports:[], code:
+`def quicksort(items: list) -> list:
+    """Sort a list using the quicksort algorithm (recursive, list comprehensions)."""
+    if len(items) <= 1:
+        return items
+    pivot = items[len(items) // 2]
+    left = [x for x in items if x < pivot]
+    middle = [x for x in items if x == pivot]
+    right = [x for x in items if x > pivot]
+    return quicksort(left) + middle + quicksort(right)`,
+  demo:(N)=>`sample = [8, 3, 5, 1, 9, 2, 7]
+print("quicksort:", quicksort(sample))`,
+  test:`def test_quicksort():
+    assert quicksort([5, 4, 3, 2, 1]) == [1, 2, 3, 4, 5]`,
+  plot:null },
+
+{ id:'merge_sort', title:'Merge Sort', category:'algo', keywords:['merge','mergesort'],
+  imports:[], code:
+`def merge_sort(items: list) -> list:
+    """Sort a list using the merge sort algorithm."""
+    if len(items) <= 1:
+        return items
+    mid = len(items) // 2
+    left = merge_sort(items[:mid])
+    right = merge_sort(items[mid:])
+    return _merge(left, right)
+
+
+def _merge(left: list, right: list) -> list:
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i]); i += 1
+        else:
+            result.append(right[j]); j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result`,
+  demo:()=>`sample = [9, 1, 8, 2, 7, 3]
+print("merge_sort:", merge_sort(sample))`,
+  test:`def test_merge_sort():
+    assert merge_sort([3, 1, 2]) == [1, 2, 3]`,
+  plot:null },
+
+{ id:'binary_search', title:'Binary Search', category:'algo', keywords:['binary','search'],
+  imports:[], code:
+`def binary_search(sorted_items: list, target) -> int:
+    """Return the index of target in a sorted list, or -1 if not found."""
+    lo, hi = 0, len(sorted_items) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if sorted_items[mid] == target:
+            return mid
+        elif sorted_items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1`,
+  demo:(N)=>`sorted_sample = [1, 3, 4, 6, 8, 9, 11]
+print("binary_search index:", binary_search(sorted_sample, ${N || 8}))`,
+  test:`def test_binary_search():
+    assert binary_search([1, 2, 3, 4, 5], 3) == 2
+    assert binary_search([1, 2, 3], 9) == -1`,
+  plot:null },
+
+{ id:'stack', title:'Stack (LIFO)', category:'algo', keywords:['stack'],
+  imports:[], code:
+`class Stack:
+    """A simple LIFO stack backed by a Python list."""
+    def __init__(self):
+        self._items: list = []
+    def push(self, item) -> None:
+        self._items.append(item)
+    def pop(self):
+        if not self._items:
+            raise IndexError("pop from empty stack")
+        return self._items.pop()
+    def peek(self):
+        return self._items[-1] if self._items else None
+    def is_empty(self) -> bool:
+        return len(self._items) == 0
+    def __len__(self) -> int:
+        return len(self._items)`,
+  demo:()=>`s = Stack()
+s.push(1); s.push(2); s.push(3)
+print("stack pop:", s.pop(), "remaining:", len(s))`,
+  test:`def test_stack():
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    assert s.pop() == 2
+    assert len(s) == 1`,
+  plot:null },
+
+{ id:'queue', title:'Queue (FIFO)', category:'algo', keywords:['queue'],
+  imports:['from collections import deque'], code:
+`class Queue:
+    """A simple FIFO queue backed by collections.deque."""
+    def __init__(self):
+        self._items = deque()
+    def enqueue(self, item) -> None:
+        self._items.append(item)
+    def dequeue(self):
+        if not self._items:
+            raise IndexError("dequeue from empty queue")
+        return self._items.popleft()
+    def is_empty(self) -> bool:
+        return len(self._items) == 0
+    def __len__(self) -> int:
+        return len(self._items)`,
+  demo:()=>`q = Queue()
+q.enqueue("a"); q.enqueue("b")
+print("queue dequeue:", q.dequeue(), "remaining:", len(q))`,
+  test:`def test_queue():
+    q = Queue()
+    q.enqueue(1)
+    q.enqueue(2)
+    assert q.dequeue() == 1`,
+  plot:null },
+
+{ id:'linked_list', title:'Linked List', category:'algo', keywords:['linkedlist','linked'],
+  imports:[], code:
+`class Node:
+    def __init__(self, value):
+        self.value = value
+        self.next = None
+
+
+class LinkedList:
+    """A singly linked list with append and traversal."""
+    def __init__(self):
+        self.head = None
+    def append(self, value) -> None:
+        node = Node(value)
+        if not self.head:
+            self.head = node
+            return
+        current = self.head
+        while current.next:
+            current = current.next
+        current.next = node
+    def to_list(self) -> list:
+        out, current = [], self.head
+        while current:
+            out.append(current.value)
+            current = current.next
+        return out`,
+  demo:()=>`ll = LinkedList()
+for v in [1, 2, 3]:
+    ll.append(v)
+print("linked list:", ll.to_list())`,
+  test:null, plot:null },
+
+{ id:'bst', title:'Binary Search Tree', category:'algo', keywords:['tree','bst'],
+  imports:[], code:
+`class TreeNode:
+    def __init__(self, value):
+        self.value = value
+        self.left = None
+        self.right = None
+
+
+class BinarySearchTree:
+    """A binary search tree supporting insert and in-order traversal."""
+    def __init__(self):
+        self.root = None
+    def insert(self, value) -> None:
+        if self.root is None:
+            self.root = TreeNode(value)
+            return
+        self._insert(self.root, value)
+    def _insert(self, node, value):
+        if value < node.value:
+            if node.left is None: node.left = TreeNode(value)
+            else: self._insert(node.left, value)
+        else:
+            if node.right is None: node.right = TreeNode(value)
+            else: self._insert(node.right, value)
+    def in_order(self) -> list:
+        result = []
+        def _walk(node):
+            if node:
+                _walk(node.left)
+                result.append(node.value)
+                _walk(node.right)
+        _walk(self.root)
+        return result`,
+  demo:()=>`bst = BinarySearchTree()
+for v in [5, 2, 8, 1, 9]:
+    bst.insert(v)
+print("in-order:", bst.in_order())`,
+  test:null, plot:null },
+
+{ id:'graph', title:'Graph BFS/DFS', category:'algo', keywords:['graph','bfs','dfs'],
+  imports:['from collections import deque'], code:
+`def bfs(graph: dict, start):
+    """Breadth-first traversal of a graph given as an adjacency dict."""
+    visited = {start}
+    order = []
+    queue = deque([start])
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for neighbor in graph.get(node, []):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return order
+
+
+def dfs(graph: dict, start, visited=None, order=None):
+    """Depth-first traversal of a graph given as an adjacency dict."""
+    if visited is None: visited = set()
+    if order is None: order = []
+    visited.add(start)
+    order.append(start)
+    for neighbor in graph.get(start, []):
+        if neighbor not in visited:
+            dfs(graph, neighbor, visited, order)
+    return order`,
+  demo:()=>`sample_graph = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": []}
+print("bfs:", bfs(sample_graph, "A"))
+print("dfs:", dfs(sample_graph, "A"))`,
+  test:null, plot:null },
+
+{ id:'fibonacci', title:'Fibonacci (memoized)', category:'algo', keywords:['fibonacci','fib'],
+  imports:['from functools import lru_cache'], code:
+`@lru_cache(maxsize=None)
+def fibonacci(n: int) -> int:
+    """Return the n-th Fibonacci number using memoized recursion."""
+    if n < 2:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)`,
+  demo:(N)=>`print("fibonacci(${N || 15}):", fibonacci(${N || 15}))`,
+  test:`def test_fibonacci():
+    assert fibonacci(0) == 0
+    assert fibonacci(1) == 1
+    assert fibonacci(10) == 55`,
+  plot:null },
+
+{ id:'factorial', title:'Factorial', category:'algo', keywords:['factorial'],
+  imports:[], code:
+`def factorial(n: int) -> int:
+    """Return n! computed iteratively."""
+    if n < 0:
+        raise ValueError("factorial is undefined for negative numbers")
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result`,
+  demo:(N)=>`print("factorial(${N || 6}):", factorial(${N || 6}))`,
+  test:`def test_factorial():
+    assert factorial(0) == 1
+    assert factorial(5) == 120`,
+  plot:null },
+
+// ---------------- WEB APP BOILERPLATE ----------------
+{ id:'flask_api', title:'Flask REST API', category:'web', keywords:['flask','api','rest','server','web'],
+  imports:['from flask import Flask, jsonify, request'], code:
+`app = Flask(__name__)
+items = []
+
+
+@app.route("/items", methods=["GET"])
+def list_items():
+    """Return all items."""
+    return jsonify(items)
+
+
+@app.route("/items", methods=["POST"])
+def create_item():
+    """Create a new item from a JSON body like {"name": "example"}."""
+    data = request.get_json(force=True)
+    item = {"id": len(items) + 1, "name": data.get("name", "")}
+    items.append(item)
+    return jsonify(item), 201`,
+  demo:()=>`# app.run() starts a real server — call it manually, not in the demo block
+print("Flask app ready. Run with: app.run(debug=True)")`,
+  test:null, plot:null },
+
+{ id:'sqlite_db', title:'SQLite persistence', category:'web', keywords:['database','sqlite','db'],
+  imports:['import sqlite3','from contextlib import closing'], code:
+`DB_PATH = "app.db"
+
+
+def init_db() -> None:
+    """Create the items table if it doesn't already exist."""
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+
+def add_item(name: str) -> int:
+    """Insert an item and return its new row id."""
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        cur = conn.execute("INSERT INTO items (name) VALUES (?)", (name,))
+        conn.commit()
+        return cur.lastrowid`,
+  demo:()=>`init_db()
+new_id = add_item("example")
+print("inserted row id:", new_id)`,
+  test:null, plot:null },
+
+{ id:'auth', title:'Token auth', category:'web', keywords:['auth','login','jwt'],
+  imports:['import hashlib','import hmac','import time'], code:
+`SECRET = "change-me"
+
+
+def hash_password(password: str, salt: str = "static-salt") -> str:
+    """Return a salted SHA-256 hash of a password (demo only — use bcrypt/argon2 in production)."""
+    return hashlib.sha256((salt + password).encode()).hexdigest()
+
+
+def make_token(user_id: str, expires_in: int = 3600) -> str:
+    """Create a simple HMAC-signed token with an expiry."""
+    expiry = str(int(time.time()) + expires_in)
+    payload = f"{user_id}:{expiry}"
+    signature = hmac.new(SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def verify_token(token: str) -> bool:
+    """Verify a token produced by make_token."""
+    try:
+        user_id, expiry, signature = token.split(":")
+        payload = f"{user_id}:{expiry}"
+        expected = hmac.new(SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(signature, expected) and int(expiry) > time.time()
+    except ValueError:
+        return False`,
+  demo:()=>`token = make_token("user-42")
+print("token valid:", verify_token(token))`,
+  test:`def test_auth_roundtrip():
+    token = make_token("u1")
+    assert verify_token(token) is True
+    assert verify_token("garbage") is False`,
+  plot:null },
+
+{ id:'http_server', title:'Plain HTTP server', category:'web', keywords:['http','httpserver'],
+  imports:['from http.server import BaseHTTPRequestHandler, HTTPServer'], code:
+`class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Hello from a plain http.server handler!")
+
+
+def run_server(port: int = 8000) -> None:
+    """Start a minimal HTTP server (blocks forever — call manually)."""
+    server = HTTPServer(("localhost", port), Handler)
+    print(f"Serving on http://localhost:{port}")
+    server.serve_forever()`,
+  demo:()=>`print("HTTP server ready. Run with: run_server(8000)")`,
+  test:null, plot:null },
+
+// ---------------- GAME LOGIC ----------------
+{ id:'tictactoe', title:'Tic-Tac-Toe', category:'game', keywords:['tictactoe'],
+  imports:[], code:
+`def print_board(board: list) -> None:
+    for row in range(0, 9, 3):
+        print(" | ".join(board[row:row + 3]))
+
+
+def check_winner(board: list) -> str:
+    """Return 'X', 'O', or '' (no winner yet) for a 9-cell board."""
+    lines = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
+    for a, b, c in lines:
+        if board[a] != " " and board[a] == board[b] == board[c]:
+            return board[a]
+    return ""`,
+  demo:()=>`board = ["X","X","X"," "," "," "," "," "," "]
+print_board(board)
+print("winner:", check_winner(board) or "none yet")`,
+  test:`def test_tictactoe_winner():
+    board = ["X","X","X"," "," "," "," "," "," "]
+    assert check_winner(board) == "X"`,
+  plot:null },
+
+{ id:'snake', title:'Snake mechanics', category:'game', keywords:['snake'],
+  imports:['import random'], code:
+`def move_snake(snake: list, direction: tuple, grow: bool = False) -> list:
+    """Move a snake (list of (x, y) tuples, head last) one step in direction."""
+    head_x, head_y = snake[-1]
+    dx, dy = direction
+    new_head = (head_x + dx, head_y + dy)
+    new_snake = snake + [new_head]
+    if not grow:
+        new_snake.pop(0)
+    return new_snake
+
+
+def spawn_food(width: int, height: int, snake: list) -> tuple:
+    """Return a random (x, y) food position that isn't occupied by the snake."""
+    while True:
+        pos = (random.randint(0, width - 1), random.randint(0, height - 1))
+        if pos not in snake:
+            return pos
+
+
+def is_collision(snake: list, width: int, height: int) -> bool:
+    """Return True if the snake has hit a wall or itself."""
+    head = snake[-1]
+    x, y = head
+    if x < 0 or x >= width or y < 0 or y >= height:
+        return True
+    return head in snake[:-1]`,
+  demo:()=>`snake = [(2,2),(3,2),(4,2)]
+snake = move_snake(snake, (1,0), grow=True)
+print("snake body:", snake, "collision:", is_collision(snake, 10, 10))`,
+  test:null, plot:null },
+
+{ id:'dice', title:'Dice roller', category:'game', keywords:['dice'],
+  imports:['import random'], code:
+`def roll_dice(num_dice: int = 2, sides: int = 6) -> list:
+    """Roll num_dice dice with 'sides' sides each and return the results."""
+    return [random.randint(1, sides) for _ in range(num_dice)]`,
+  demo:(N)=>`print("roll:", roll_dice(${N ? Math.min(N,10) : 2}, 6))`,
+  test:`def test_roll_dice():
+    rolls = roll_dice(5, 6)
+    assert len(rolls) == 5
+    assert all(1 <= r <= 6 for r in rolls)`,
+  plot:null },
+
+{ id:'rpg_battle', title:'RPG battle sim', category:'game', keywords:['rpg','battle'],
+  imports:['import random'], code:
+`class Character:
+    """A simple RPG character with HP and attack power."""
+    def __init__(self, name: str, hp: int, attack: int):
+        self.name = name
+        self.hp = hp
+        self.attack = attack
+    def is_alive(self) -> bool:
+        return self.hp > 0
+    def attack_target(self, target: "Character") -> int:
+        damage = max(random.randint(self.attack - 2, self.attack + 2), 0)
+        target.hp -= damage
+        return damage
+
+
+def simulate_battle(hero: "Character", enemy: "Character") -> str:
+    """Simulate a turn-based battle and return the name of the winner."""
+    turn = 0
+    while hero.is_alive() and enemy.is_alive():
+        turn += 1
+        dmg = hero.attack_target(enemy)
+        print(f"Turn {turn}: {hero.name} hits {enemy.name} for {dmg} damage.")
+        if not enemy.is_alive():
+            break
+        dmg = enemy.attack_target(hero)
+        print(f"Turn {turn}: {enemy.name} hits {hero.name} for {dmg} damage.")
+    return hero.name if hero.is_alive() else enemy.name`,
+  demo:()=>`hero = Character("Hero", 30, 8)
+enemy = Character("Goblin", 25, 6)
+print("winner:", simulate_battle(hero, enemy))`,
+  test:null, plot:null },
+
+{ id:'minimax', title:'Minimax AI', category:'game', keywords:['minimax'],
+  imports:[], code:
+`def minimax(board: list, depth: int, is_maximizing: bool, check_winner, available_moves) -> int:
+    """Generic minimax scorer for a two-player zero-sum board game."""
+    winner = check_winner(board)
+    if winner == "AI":
+        return 10 - depth
+    if winner == "HUMAN":
+        return depth - 10
+    if not available_moves(board):
+        return 0
+    if is_maximizing:
+        best = -float("inf")
+        for move in available_moves(board):
+            board[move] = "AI"
+            best = max(best, minimax(board, depth + 1, False, check_winner, available_moves))
+            board[move] = " "
+        return best
+    else:
+        best = float("inf")
+        for move in available_moves(board):
+            board[move] = "HUMAN"
+            best = min(best, minimax(board, depth + 1, True, check_winner, available_moves))
+            board[move] = " "
+        return best`,
+  demo:()=>`print("minimax() is generic — plug in your own check_winner/available_moves for a specific game.")`,
+  test:null, plot:null },
+
+// ---------------- MATH / SCIENCE SIMULATIONS ----------------
+{ id:'projectile', title:'Projectile motion', category:'math', keywords:['projectile'],
+  imports:['import math'], code:
+`def projectile_range(velocity: float, angle_deg: float, gravity: float = 9.81) -> float:
+    """Return the horizontal range of a projectile launched at angle_deg."""
+    angle_rad = math.radians(angle_deg)
+    return (velocity ** 2) * math.sin(2 * angle_rad) / gravity
+
+
+def projectile_trajectory(velocity: float, angle_deg: float, gravity: float = 9.81, steps: int = 50):
+    """Yield (x, y) positions along a projectile's flight path."""
+    angle_rad = math.radians(angle_deg)
+    vx = velocity * math.cos(angle_rad)
+    vy = velocity * math.sin(angle_rad)
+    t_flight = 2 * vy / gravity
+    for i in range(steps + 1):
+        t = t_flight * i / steps
+        x = vx * t
+        y = vy * t - 0.5 * gravity * t ** 2
+        yield (x, max(y, 0))`,
+  demo:()=>`print("range at 45 deg, v=20 m/s:", round(projectile_range(20, 45), 2), "m")`,
+  test:`def test_projectile_range():
+    assert projectile_range(20, 45) > 0`,
+  plot:()=>`xs, ys = zip(*projectile_trajectory(20, 45))
+plt.plot(xs, ys)
+plt.title("Projectile trajectory")
+plt.xlabel("x (m)"); plt.ylabel("y (m)")
+plt.savefig("projectile_trajectory.png")
+print("Saved plot to projectile_trajectory.png")` },
+
+{ id:'orbital', title:'Orbital mechanics', category:'math', keywords:['orbital','orbit'],
+  imports:['import math'], code:
+`G = 6.674e-11  # gravitational constant (SI units)
+
+
+def gravitational_force(m1: float, m2: float, r: float) -> float:
+    """Return the gravitational force between two masses separated by distance r."""
+    return G * m1 * m2 / (r ** 2)
+
+
+def orbital_period(semi_major_axis: float, total_mass: float) -> float:
+    """Return the orbital period via Kepler's third law (SI units)."""
+    return 2 * math.pi * math.sqrt((semi_major_axis ** 3) / (G * total_mass))`,
+  demo:()=>`earth_sun_period = orbital_period(1.496e11, 1.989e30)
+print("Earth orbital period (days):", round(earth_sun_period / 86400, 1))`,
+  test:null, plot:null },
+
+{ id:'harmonic', title:'Harmonic oscillator', category:'math', keywords:['harmonic','oscillator','spring'],
+  imports:['import math'], code:
+`def shm_position(amplitude: float, angular_freq: float, t: float, phase: float = 0.0) -> float:
+    """Position of a simple harmonic oscillator at time t."""
+    return amplitude * math.cos(angular_freq * t + phase)
+
+
+def shm_energy(mass: float, angular_freq: float, amplitude: float) -> float:
+    """Total mechanical energy of a simple harmonic oscillator."""
+    return 0.5 * mass * (angular_freq ** 2) * (amplitude ** 2)`,
+  demo:()=>`print("position at t=1s:", round(shm_position(1.0, 2.0, 1.0), 4))
+print("total energy:", round(shm_energy(0.5, 2.0, 1.0), 4), "J")`,
+  test:null,
+  plot:()=>`ts = [i * 0.05 for i in range(200)]
+ys = [shm_position(1.0, 2.0, t) for t in ts]
+plt.plot(ts, ys)
+plt.title("Simple harmonic motion")
+plt.xlabel("t (s)"); plt.ylabel("position")
+plt.savefig("harmonic_motion.png")
+print("Saved plot to harmonic_motion.png")` },
+
+{ id:'random_walk', title:'Random walk', category:'math', keywords:['randomwalk','walk'],
+  imports:['import random'], code:
+`def random_walk_1d(steps: int) -> list:
+    """Simulate a 1D random walk and return the position history."""
+    position = 0
+    history = [position]
+    for _ in range(steps):
+        position += random.choice([-1, 1])
+        history.append(position)
+    return history`,
+  demo:(N)=>`history = random_walk_1d(${N || 100})
+print("final position after", len(history) - 1, "steps:", history[-1])`,
+  test:`def test_random_walk_length():
+    history = random_walk_1d(50)
+    assert len(history) == 51`,
+  plot:()=>`history = random_walk_1d(200)
+plt.plot(history)
+plt.title("1D random walk")
+plt.xlabel("step"); plt.ylabel("position")
+plt.savefig("random_walk.png")
+print("Saved plot to random_walk.png")` },
+
+{ id:'monte_carlo', title:'Monte Carlo (pi)', category:'math', keywords:['montecarlo','monte','pi'],
+  imports:['import random'], code:
+`def estimate_pi(num_samples: int = 100000) -> float:
+    """Estimate pi using Monte Carlo sampling of a unit circle."""
+    inside = 0
+    for _ in range(num_samples):
+        x, y = random.random(), random.random()
+        if x * x + y * y <= 1.0:
+            inside += 1
+    return 4 * inside / num_samples`,
+  demo:(N)=>`print("pi estimate:", estimate_pi(${N ? N*1000 : 100000}))`,
+  test:`def test_estimate_pi_reasonable():
+    pi_estimate = estimate_pi(20000)
+    assert 2.9 < pi_estimate < 3.4`,
+  plot:null },
+
+{ id:'rk4', title:'RK4 ODE solver', category:'math', keywords:['rk4','ode','differential'],
+  imports:['from typing import Callable'], code:
+`def rk4_step(f: Callable[[float, float], float], t: float, y: float, h: float) -> float:
+    """Advance one Runge-Kutta 4th order step for dy/dt = f(t, y)."""
+    k1 = f(t, y)
+    k2 = f(t + h / 2, y + h * k1 / 2)
+    k3 = f(t + h / 2, y + h * k2 / 2)
+    k4 = f(t + h, y + h * k3)
+    return y + (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+
+def rk4_solve(f: Callable[[float, float], float], t0: float, y0: float, t_end: float, steps: int = 100):
+    """Solve dy/dt = f(t, y) from t0 to t_end and return (times, values)."""
+    h = (t_end - t0) / steps
+    t, y = t0, y0
+    times, values = [t], [y]
+    for _ in range(steps):
+        y = rk4_step(f, t, y, h)
+        t += h
+        times.append(t)
+        values.append(y)
+    return times, values`,
+  demo:()=>`# dy/dt = -y  (exponential decay)
+times, values = rk4_solve(lambda t, y: -y, 0, 1.0, 5, steps=50)
+print("y at t=5:", round(values[-1], 5))`,
+  test:`def test_rk4_decay():
+    times, values = rk4_solve(lambda t, y: -y, 0, 1.0, 1, steps=100)
+    assert abs(values[-1] - 0.3679) < 0.01`,
+  plot:()=>`times, values = rk4_solve(lambda t, y: -y, 0, 1.0, 5, steps=100)
+plt.plot(times, values)
+plt.title("RK4 solution: dy/dt = -y")
+plt.xlabel("t"); plt.ylabel("y")
+plt.savefig("rk4_solution.png")
+print("Saved plot to rk4_solution.png")` },
+];
+
+const MODIFIERS = {
+  tests:     { label:'Tests',      trigger:'tests',     keywords:['test','tests','pytest','unittest'] },
+  benchmark: { label:'Benchmark',  trigger:'benchmark',  keywords:['benchmark','timing','perf','performance'] },
+  cli:       { label:'CLI',        trigger:'cli',        keywords:['cli','argparse','commandline'] },
+  plot:      { label:'Plot',       trigger:'plot',       keywords:['plot','visualize','chart','matplotlib'] },
+  logging:   { label:'Logging',    trigger:'logging',    keywords:['log','logging'] },
+  seed:      { label:'Seed',       trigger:'seed',       keywords:['seed','reproducible','deterministic'] },
+};
+
+const CATEGORIES = [
+  {id:'all',  label:'All'},
+  {id:'algo', label:'Algorithms'},
+  {id:'web',  label:'Web'},
+  {id:'game', label:'Games'},
+  {id:'math', label:'Math/Sci'},
+  {id:'mods', label:'Modifiers'},
+];
+
+let activeCat = 'all';
+
+/* ============================================================
+   UI setup
+   ============================================================ */
+function indent(str, spaces){
+  const pad = ' '.repeat(spaces);
+  return str.split('\n').map(l => l.length ? pad + l : l).join('\n');
+}
+
+function renderTabs(){
+  const el = document.getElementById('catTabs');
+  el.innerHTML = '';
+  CATEGORIES.forEach(c=>{
+    const b = document.createElement('div');
+    b.className = 'tab' + (c.id===activeCat ? ' active':'');
+    b.textContent = c.label;
+    b.onclick = ()=>{ activeCat = c.id; renderTabs(); renderChips(); };
+    el.appendChild(b);
+  });
+}
+function renderChips(){
+  const el = document.getElementById('chipArea');
+  el.innerHTML = '';
+  const addChip = (label, token, isMod)=>{
+    const c = document.createElement('div');
+    c.className = 'chip' + (isMod ? ' mod':'');
+    c.textContent = label;
+    c.onclick = ()=>{
+      const input = document.getElementById('kwInput');
+      input.value = (input.value.trim() + ' ' + token).trim();
+      input.focus();
+    };
+    el.appendChild(c);
+  };
+  if(activeCat === 'mods'){
+    Object.values(MODIFIERS).forEach(m => addChip(m.label, m.trigger, true));
+    return;
+  }
+  LIB.filter(item => activeCat==='all' || item.category===activeCat)
+     .forEach(item => addChip(item.title, item.keywords[0], false));
+}
+
+/* ============================================================
+   Generation
+   ============================================================ */
+function generate(){
+  const raw = document.getElementById('kwInput').value.trim();
+  const outWrap = document.getElementById('outputWrap');
+  const infoEl = document.getElementById('matchedInfo');
+
+  if(!raw){
+    outWrap.innerHTML = '<div class="empty-msg">Type a keyword first — try "quicksort" or tap a chip above.</div>';
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  const rawLower = raw.toLowerCase();
+  const tokens = rawLower.split(/[^a-z0-9]+/).filter(Boolean);
+  const tokenSet = new Set(tokens);
+  const numMatch = raw.match(/\d+/);
+  const N = numMatch ? parseInt(numMatch[0], 10) : null;
+
+  // Exact token match only (no raw substring fallback) — avoids false hits like
+  // "api" incidentally containing the substring "pi".
+  const matchKw = (kw)=> tokenSet.has(kw);
+
+  const matched = LIB.filter(item => item.keywords.some(matchKw));
+  const modsMatched = Object.keys(MODIFIERS).filter(name => MODIFIERS[name].keywords.some(matchKw));
+
+  if(matched.length === 0){
+    outWrap.innerHTML = '<div class="empty-msg">No library components matched those keywords. Scroll to the keyword library below, or try words like "flask", "snake", "orbital", "bst".</div>';
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  // ---- imports ----
+  let imports = [];
+  matched.forEach(m => m.imports.forEach(imp => { if(!imports.includes(imp)) imports.push(imp); }));
+  if(modsMatched.includes('logging') && !imports.includes('import logging')) imports.unshift('import logging');
+  if(modsMatched.includes('benchmark') && !imports.includes('import time')) imports.push('import time');
+  if(modsMatched.includes('cli') && !imports.includes('import argparse')) imports.push('import argparse');
+  if(modsMatched.includes('plot') && !imports.includes('import matplotlib.pyplot as plt')) imports.push('import matplotlib.pyplot as plt');
+
+  let out = '"""\n';
+  out += 'Generated by QGEN::COMPOSER -- deterministic keyword-to-template assembly (no AI).\n';
+  out += 'Matched components: ' + matched.map(m=>m.title).join(', ') + '\n';
+  if(modsMatched.length) out += 'Modifiers: ' + modsMatched.join(', ') + '\n';
+  out += '"""\n\n';
+  out += imports.join('\n') + (imports.length ? '\n\n' : '');
+
+  if(modsMatched.includes('logging')){
+    out += 'logging.basicConfig(level=logging.INFO)\nlogger = logging.getLogger(__name__)\n\n';
+  }
+  if(modsMatched.includes('seed') && imports.includes('import random')){
+    out += 'random.seed(42)  # reproducible results\n\n';
+  }
+
+  matched.forEach(m=>{
+    out += '# ' + '-'.repeat(63) + '\n';
+    out += '# ' + m.title + '\n';
+    out += '# ' + '-'.repeat(63) + '\n';
+    out += m.code.trim() + '\n\n';
+  });
+
+  // ---- main() body ----
+  let bodyLines = [];
+  if(modsMatched.includes('logging')) bodyLines.push('logger.info("Starting generated program")');
+  if(modsMatched.includes('benchmark')) bodyLines.push('start = time.perf_counter()');
+
+  if(modsMatched.includes('cli')){
+    bodyLines.push('parser = argparse.ArgumentParser(description="Generated component runner")');
+    bodyLines.push('parser.add_argument("--run", choices=' + JSON.stringify(matched.map(m=>m.id)) + ', default="' + matched[0].id + '")');
+    bodyLines.push('args = parser.parse_args()');
+    bodyLines.push('');
+    matched.forEach((m,i)=>{
+      bodyLines.push((i===0 ? 'if' : 'elif') + ' args.run == "' + m.id + '":');
+      bodyLines.push(indent(m.demo(N), 4));
+    });
+  } else {
+    matched.forEach(m => bodyLines.push(m.demo(N)));
+  }
+
+  if(modsMatched.includes('plot')){
+    matched.forEach(m => { if(m.plot) bodyLines.push(m.plot(N)); });
+  }
+  if(modsMatched.includes('benchmark')){
+    bodyLines.push('elapsed = time.perf_counter() - start');
+    bodyLines.push('print(f"Elapsed: {elapsed:.6f}s")');
+  }
+
+  out += 'def main():\n' + indent(bodyLines.join('\n'), 4) + '\n\n\nif __name__ == "__main__":\n    main()\n';
+
+  if(modsMatched.includes('tests')){
+    const testBlocks = matched.filter(m => m.test).map(m => m.test.trim());
+    if(testBlocks.length){
+      out += '\n\n# ' + '-'.repeat(63) + '\n';
+      out += '# Tests -- save as test_generated.py and run: pytest test_generated.py\n';
+      out += '# ' + '-'.repeat(63) + '\n';
+      out += testBlocks.join('\n\n\n') + '\n';
+    }
+  }
+
+  window.__generatedCode = out;
+
+  const lineCount = out.split('\n').length;
+  const gutter = Array.from({length:lineCount}, (_,i)=>i+1).join('\n');
+  outWrap.innerHTML =
+    '<div class="editor"><div class="gutter">' + gutter + '</div><pre><code>' +
+    out.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+    '</code></pre></div>' +
+    '<div class="statusbar"><span>' + lineCount + ' lines</span><span>' + out.length + ' chars</span><span>UTF-8</span></div>';
+
+  infoEl.innerHTML = 'Matched: <b>' + matched.map(m=>m.title).join('</b>, <b>') + '</b>' +
+    (modsMatched.length ? ' &nbsp;|&nbsp; Modifiers: <span class="mod-tag">' + modsMatched.map(m=>MODIFIERS[m].label).join('</span>, <span class="mod-tag">') + '</span>' : '');
+}
+
+function clearAll(){
+  document.getElementById('kwInput').value = '';
+  document.getElementById('outputWrap').innerHTML = '<div class="empty-msg">No code yet — enter keywords above and tap Compose code.</div>';
+  document.getElementById('matchedInfo').innerHTML = '';
+  window.__generatedCode = '';
+}
+
+function copyCode(){
+  const code = window.__generatedCode || '';
+  const msg = document.getElementById('copyMsg');
+  if(!code){ msg.textContent = 'nothing to copy yet'; setTimeout(()=>msg.textContent='',1500); return; }
+  navigator.clipboard.writeText(code).then(()=>{
+    msg.textContent = 'copied!';
+    setTimeout(()=>msg.textContent='', 1500);
+  }).catch(()=>{
+    msg.textContent = 'copy failed — select manually';
+    setTimeout(()=>msg.textContent='', 2000);
+  });
+}
+
+/* ============================================================
+   Legend
+   ============================================================ */
+function renderLegend(){
+  const el = document.getElementById('legendArea');
+  let html = '';
+  ['algo','web','game','math'].forEach(cat=>{
+    const label = CATEGORIES.find(c=>c.id===cat).label;
+    html += '<span class="cat">' + label + '</span>';
+    LIB.filter(i=>i.category===cat).forEach(i=>{
+      html += i.title + ' &rarr; <code>' + i.keywords.join('</code>, <code>') + '</code><br>';
+    });
+  });
+  html += '<span class="cat">Modifiers (combine with anything)</span>';
+  Object.values(MODIFIERS).forEach(m=>{
+    html += m.label + ' &rarr; <code>' + m.keywords.join('</code>, <code>') + '</code><br>';
+  });
+  html += '<span class="cat">Numbers</span>Any digit in your input (e.g. "fibonacci 20") is used as a parameter where relevant.';
+  el.innerHTML = html;
+}
+
+renderTabs();
+renderChips();
+renderLegend();
+</script>
+</body>
+</html>
