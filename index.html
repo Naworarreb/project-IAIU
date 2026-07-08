@@ -1008,17 +1008,56 @@ function clearAll(){
   window.__generatedCode = '';
 }
 
+function legacyCopy(text){
+  // Fallback for contexts where navigator.clipboard is unavailable or blocked
+  // (e.g. file:// origins, some in-app browsers, older WebViews).
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+function selectOutputForManualCopy(){
+  const pre = document.querySelector('#outputWrap pre');
+  if(!pre) return;
+  const range = document.createRange();
+  range.selectNodeContents(pre);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 function copyCode(){
   const code = window.__generatedCode || '';
   const msg = document.getElementById('copyMsg');
   if(!code){ msg.textContent = 'nothing to copy yet'; setTimeout(()=>msg.textContent='',1500); return; }
-  navigator.clipboard.writeText(code).then(()=>{
-    msg.textContent = 'copied!';
-    setTimeout(()=>msg.textContent='', 1500);
-  }).catch(()=>{
-    msg.textContent = 'copy failed — select manually';
-    setTimeout(()=>msg.textContent='', 2000);
-  });
+
+  const showResult = (ok)=>{
+    if(ok){
+      msg.textContent = 'copied!';
+      setTimeout(()=>msg.textContent='', 1500);
+    } else {
+      selectOutputForManualCopy();
+      msg.textContent = 'auto-copy blocked — text selected, use your browser\'s Copy';
+      setTimeout(()=>msg.textContent='', 3500);
+    }
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+    navigator.clipboard.writeText(code).then(()=>showResult(true)).catch(()=>showResult(legacyCopy(code)));
+  } else {
+    showResult(legacyCopy(code));
+  }
 }
 
 /* ============================================================
